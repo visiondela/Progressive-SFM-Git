@@ -9,7 +9,6 @@
 
 
 
-
 //#####################      HEADER FILE INCLUDES     #######################
 #pragma once
 #include "cameramotion.h"
