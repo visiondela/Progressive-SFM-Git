@@ -36,15 +36,15 @@ boost::tuple<vector<KeyPoint>,vector<KeyPoint>> Cameramotion::Getpointmatches_ri
 
 	//DRAW KEYPOINTS
 
-	Mat img_keypoints_1; Mat img_keypoints_2;
-	drawKeypoints( img1, keypoints1, img_keypoints_1, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
-	drawKeypoints( img2, keypoints2, img_keypoints_2, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
-	
-	imshow("Stream", img_keypoints_1 );
-	waitKey(400);
+	//Mat img_keypoints_1; Mat img_keypoints_2;
+	//drawKeypoints( img1, keypoints1, img_keypoints_1, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
+	//drawKeypoints( img2, keypoints2, img_keypoints_2, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
+	//
+	////imshow("Stream", img_keypoints_1 );
+	////waitKey(2000);
 
-	imshow("Stream", img_keypoints_2 );
-	waitKey(400);
+	////imshow("Stream", img_keypoints_2 );
+	////waitKey(2000);
 
 	//GET DESCRIPTORS FOR KEYPOINTS
 
@@ -61,8 +61,8 @@ boost::tuple<vector<KeyPoint>,vector<KeyPoint>> Cameramotion::Getpointmatches_ri
 	drawMatches(img1,keypoints1,img2,keypoints2,matches,img_matches);
 
 	////Show matches
-	imshow("Stream", img_matches);
-	waitKey(400);
+	/*imshow("Stream", img_matches);
+	waitKey(400);*/
 
 	return boost::make_tuple(keypoints1,keypoints2);
 }

@@ -30,6 +30,7 @@ Calibration::Calibration(vector<vector<Point2f>>imagepoints,vector<vector<Point3
 //#####################     FUNCTION: GET CAMERA/CALIBRATION MATRIX      #######################
 Mat Calibration::get_cameramatrix()
 {
+				//CREATE OBJECT POINTS FOR CHECKERBOARD
 
 		Size imageSize(width,length);
 		//Calibrate Camera
