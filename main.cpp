@@ -203,7 +203,7 @@ void Stream (int stream_code)
 
 	
 	int frame_no=1;
-
+	int frames_captured = 0;
 	while(1)
 	{
 		
@@ -224,6 +224,7 @@ void Stream (int stream_code)
 		{
 			frames.push_back(frame);
 			cout<<"Captured"<<endl;
+			frames_captured++;
 		}
 		
 		frame_no++;	
@@ -231,7 +232,7 @@ void Stream (int stream_code)
 		if(waitKey(30) == 27) //wait for 'esc' key press for 30 ms. If 'esc' key is pressed, break loop
 		{
                 cout << "esc key is pressed by user" << endl; 
-				frames_reconstructed = frame_no;
+				frames_reconstructed = frames_captured;
                 break;
 		}
 	}
@@ -247,7 +248,7 @@ void Stream_Process(Mat_<double> KMatrix)
 	compression_params.push_back(98); //this is the compression quality
 	
 	//Create the point cloud
-	pcl::visualization::CloudViewer viewer("Cloud Viewer");
+	pcl::visualization::CloudViewer viewer("3D Reconstruction");
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud; //create the point cloud
 	cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
 		
@@ -258,50 +259,55 @@ void Stream_Process(Mat_<double> KMatrix)
 	//Initialise that the baseline has not been reconstructed
 	string baseline_state= "Baseline not reconstructed";
 	int a = 1 ;//counter
-
-	while (1)
+	
+	while (a<frames_reconstructed)
 	{
 		Mat frame,frame_back;
-
 
 		try
 		{
 			//Get frame
 			frame = frames.at(a);
 			frame_back=frames.at(a-1);
-		
+			
 		
 			//Reconstruct the baseline
 			if (baseline_state!="Baseline reconstructed")
 			{
 			
+				
 				Cameramotion baseline(frame_back,frame); //send the two images
-	
+
 				//Get keypoints
+				vector<KeyPoint> unrefined_keypoints1; //Keypoints in frame 1
+				vector<KeyPoint> unrefined_keypoints2;//Keypoints in frame 2
+				vector<DMatch> matches;
+
+				boost::tie(unrefined_keypoints1,unrefined_keypoints2,matches)=baseline.Getpointmatches_richfeatures();
+	
+				//Get the fundamental matrix and refined keypoints
 				vector<KeyPoint> pt_set1; //Keypoints in frame 1
 				vector<KeyPoint> pt_set2;//Keypoints in frame 2
-				
-				boost::tie(pt_set1,pt_set2)=baseline.Getpointmatches_richfeatures();
-					
-				//Get the fundamental matrix
-				Mat fundamentalmatrix = baseline.Get_fundamentalmatrix();
-
+				Mat fundamentalmatrix;
+				boost::tie(pt_set1,pt_set2,fundamentalmatrix) = baseline.Get_fundamentalmatrix(unrefined_keypoints1,unrefined_keypoints2,matches);
+	
 				//Get the essential matrix - must check if correct
 				Mat essentialmatrix = baseline.Get_essentialMatrix(KMatrix,fundamentalmatrix);
-				
+	
 				//Get the camera matrices
-				Matx34d cameramatrix;
+				Matx34d cameramatrix(0,0,0,0,0,0,0,0,0,0,0,0);
 				Matx34d cameramatrix1 = baseline.Get_cameraMatrix(essentialmatrix);
-			
+
 				//Get calibrated camera matrix
 				Mat_<double> KCameramatrix1 = KMatrix*Mat(cameramatrix1);
-	
+
 				//Triangulate the points
 				Triangulatepoints base(cameramatrix,cameramatrix1); //send the two images
-
-				for (unsigned int i=0;i<pt_set1.size();i++)
+				unsigned int pts_size = pt_set1.size();
+				cout<< pt_set1.size()<< " "<< pt_set2.size()<<endl;
+				for (unsigned int i=0;i<pts_size;i++)//pt_set1.size()
 				{	
-			
+					
 					//Create homo keypoint 1
 					Point2f kp = pt_set1[i].pt;
 					Point3d u(kp.x,kp.y,1.0);
@@ -311,7 +317,7 @@ void Stream_Process(Mat_<double> KMatrix)
 					u.x = um(0);
 					u.y = um(1);
 					u.z = um(2);
-		
+	
 					//Create homo keypoint 2
 					Point2f kp1 = pt_set2[i].pt;
 					Point3d u1(kp1.x,kp1.y,1.0);
@@ -321,15 +327,16 @@ void Stream_Process(Mat_<double> KMatrix)
 					u1.x = um1(0);
 					u1.y = um1(1);
 					u1.z = um1(2);
-					cout<<"DONE"<<endl;
+
+
 					//Triangulate points
 					Mat_<double> X = base.Linearleastsquares_triangulation(u,u1);
-					cout<<"breaks"<<endl;
+
 					//Calculate the reprojection error
 					Mat_<double> xPt_img =  KCameramatrix1*X; //Get the second image coordinate from the triangulated 3D point
 					Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
 					//error = norm(xPt_img_ - kp1);
-						
+	
 					//ADD REPROJECTION ERROR TO REPROJECTION ERROR LIST
 					//reproj_error.push_back(error); 
 						
@@ -341,33 +348,37 @@ void Stream_Process(Mat_<double> KMatrix)
 					pclp.rgb = *reinterpret_cast<float*>(&rgb);
 						
 					//Add 3D point to point cloud
-					cloud->push_back(pclp);		
+					cloud->push_back(pclp);	
+
 				}
 
 				//Calculate the reprojection error
 				//mean_projerror = mean (reproj_error);
 				//cout<<"The mean reprojection error :" <<mean_projerror[0]<<endl;	
-				
+	
 				//print out the point count
-				cout<<cloud->points.size()<<endl;
-				
+				//cout<<cloud->points.size()<<endl;
+	
 				//Visualize the point cloud 
 				cloud->width = (uint32_t) cloud->points.size(); //number of points
 				cloud->height = 1; //a list of points, one row of data
+			
+		
 				viewer.showCloud(cloud);
-
+		
 				baseline_state="Baseline reconstructed";
 				a++;
 			}	
-
-			cout<<"Frame "<<a<<" reconstructed"<<endl;
 			a++;
 		}
 		catch(...)
 		{
-			cout<<"exception"<<endl;
+			//cout<<"exception"<<endl;
 		}
 	}
+
+	cout<<"Program finished"<<endl;
+	system("pause");
 }
 
 
@@ -375,7 +386,7 @@ void Stream_Process(Mat_<double> KMatrix)
 int main(int argc, char** argv)
 {
 	
-
+	
 	double frame_width,frame_length; //Size of the frame
 	Mat_<double> KMatrix;
 
@@ -421,11 +432,13 @@ int main(int argc, char** argv)
 	boost::thread_group tgroup;
 
 	tgroup.create_thread(boost::bind(&Stream,stream_code));
-	boost::this_thread::sleep(boost::posix_time::seconds(30));
+	//boost::this_thread::sleep(boost::posix_time::seconds(30));
 	
 	tgroup.create_thread(boost::bind(&Stream_Process,KMatrix));
 
 	tgroup.join_all(); //join where one thread main..waits for all threads to finish
+
+	
 
 	return 0;	
 }

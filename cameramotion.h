@@ -36,29 +36,15 @@ class Cameramotion
 		//VARIABLES
 		Mat img1; //Frame 1
 		Mat img2; //Frame 2
-		vector<KeyPoint> keypoints1, keypoints2; //Vector of keypoints data type includes 2d coords and scale and orietnation 
-		Mat descriptors1,descriptors2; //Descriptors
-		vector<DMatch> matches; //Matches
-		Mat img_matches; //Img_matches
-		Mat F; //Fundemental matrix
-		Mat E; //Essential matrix
-		Mat_<double> R ;// Rotation matrix
-		Mat_<double> t ;//Translation matrix
-		Matx34d P1; //camera matrix 2
-		Matx34d P; //camera matrix 1
-		Mat svd_u ; //SVD u
-		Mat svd_vt ;//SVD vt
-		Mat svd_w ;//SVD w
-		vector<Point2f> imgpts1, imgpts2; //Vector of image points, point2f is a float 2d point (x,y)
-
+		
 	//PUBLIC 
 	public:
 		//CONSTRUCTOR		
 		Cameramotion(Mat frame1,Mat frame2);
 		//FUNCTION: FIND POINT MATCHES -RICH FEATURES
-		boost::tuple<vector<KeyPoint> ,vector<KeyPoint> > Getpointmatches_richfeatures();
+		boost::tuple<vector<KeyPoint> ,vector<KeyPoint> , vector<DMatch> > Getpointmatches_richfeatures();
 		//FUNCTION: GET FUNDAMENTAL MATRIX
-		Mat Get_fundamentalmatrix();
+		boost::tuple<vector<KeyPoint>,vector<KeyPoint>,Mat> Get_fundamentalmatrix(vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch>);
 		//FUNCTION: GET ESSENTIAL MATRIX
 		Mat Get_essentialMatrix(Mat K,Mat F);
 		//FUNCTION: GET CAMERA MATRIX
