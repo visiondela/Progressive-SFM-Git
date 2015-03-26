@@ -161,7 +161,7 @@ Mat_<double> Stream_Calibrate (int stream_code,double frame_width,double frame_l
 					
 				//Display corners captured for 100 miliseconds before going back to displaying hte pattern
 				imshow("Stream_Calibrate",frame);
-				waitKey(100); 
+				waitKey(300); 
 
 				//Clear the corners vector
 				corners.clear();
@@ -269,7 +269,16 @@ void Stream_Process(Mat_<double> KMatrix)
 			frame = frames.at(a);
 			frame_back=frames.at(a-1);
 			
-		
+			
+	//check for matches between new frame and the past frame
+
+
+
+
+
+
+
+
 			//Reconstruct the baseline
 			if (baseline_state!="Baseline reconstructed")
 			{
@@ -280,16 +289,17 @@ void Stream_Process(Mat_<double> KMatrix)
 				//Get keypoints
 				vector<KeyPoint> unrefined_keypoints1; //Keypoints in frame 1
 				vector<KeyPoint> unrefined_keypoints2;//Keypoints in frame 2
-				vector<DMatch> matches;
+				vector<DMatch> unrefined_matches;
 
-				boost::tie(unrefined_keypoints1,unrefined_keypoints2,matches)=baseline.Getpointmatches_richfeatures();
+				boost::tie(unrefined_keypoints1,unrefined_keypoints2,unrefined_matches)=baseline.Getpointmatches_richfeatures();
 	
 				//Get the fundamental matrix and refined keypoints
 				vector<KeyPoint> pt_set1; //Keypoints in frame 1
 				vector<KeyPoint> pt_set2;//Keypoints in frame 2
 				Mat fundamentalmatrix;
-				boost::tie(pt_set1,pt_set2,fundamentalmatrix) = baseline.Get_fundamentalmatrix(unrefined_keypoints1,unrefined_keypoints2,matches);
-	
+				vector<DMatch> matches; //correct matches
+				boost::tie(pt_set1,pt_set2,fundamentalmatrix,matches) = baseline.Get_fundamentalmatrix(unrefined_keypoints1,unrefined_keypoints2,unrefined_matches);
+				
 				//Get the essential matrix - must check if correct
 				Mat essentialmatrix = baseline.Get_essentialMatrix(KMatrix,fundamentalmatrix);
 	
@@ -375,6 +385,33 @@ void Stream_Process(Mat_<double> KMatrix)
 				}
 			
 			}	
+
+			else
+			{
+				//search between the current frame and the previous frame for matches
+				
+				vector<Point3f> ppcloud_existing; //3d points in current cloud 
+				vector<Point2f> imgPoints_new; //2d points in new frame
+
+
+				//Get matches
+				Cameramotion baseline(frame_back,frame); //send the two images
+
+				//Get keypoints
+				vector<KeyPoint> unrefined_keypoints1; //Keypoints in frame 1
+				vector<KeyPoint> unrefined_keypoints2;//Keypoints in frame 2
+				vector<DMatch> unrefined_matches;
+
+				boost::tie(unrefined_keypoints1,unrefined_keypoints2,unrefined_matches)=baseline.Getpointmatches_richfeatures();
+	
+				//Get the fundamental matrix and refined keypoints
+				vector<KeyPoint> pt_set1; //Keypoints in frame 1
+				vector<KeyPoint> pt_set2;//Keypoints in frame 2
+				Mat fundamentalmatrix;
+				vector<DMatch> matches; //correct matches
+				boost::tie(pt_set1,pt_set2,fundamentalmatrix,matches) = baseline.Get_fundamentalmatrix(unrefined_keypoints1,unrefined_keypoints2,unrefined_matches);
+				
+				
 			a++;
 		}
 		catch(...)

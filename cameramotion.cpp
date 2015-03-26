@@ -75,7 +75,7 @@ boost::tuple<vector<KeyPoint>,vector<KeyPoint>,vector<DMatch> > Cameramotion::Ge
 
 //#####################      FUNCTION: GET FUNDAMENTAL MATRIX      ######################
 
-boost::tuple<vector<KeyPoint>,vector<KeyPoint>,Mat > Cameramotion::Get_fundamentalmatrix(vector<KeyPoint> detected_keypoints1,vector<KeyPoint> detected_keypoints2,vector<DMatch> matches)
+boost::tuple<vector<KeyPoint>,vector<KeyPoint>,Mat,vector<DMatch>  > Cameramotion::Get_fundamentalmatrix(vector<KeyPoint> detected_keypoints1,vector<KeyPoint> detected_keypoints2,vector<DMatch> matches)
 {
 	
 	//Need to eliminate keypoints based on the fundamental matrix
@@ -114,6 +114,13 @@ boost::tuple<vector<KeyPoint>,vector<KeyPoint>,Mat > Cameramotion::Get_fundament
 	//calculate the fundamental matrix using ransac
 	F = findFundamentalMat(imgpts1,imgpts2, FM_RANSAC, 0.006 * maxVal, 0.99, status);
 
+	//Create a structure that has the aligned keypoints and the index of their corresponding image point in frame 2
+
+	struct CloudPoint
+	{
+		Point3d pt;
+		vector<int>index_of_2d_origin;
+	}
 
 
 	//status is an array of N elements - element is set to 0 for outliers and 1 for current points
@@ -142,11 +149,11 @@ boost::tuple<vector<KeyPoint>,vector<KeyPoint>,Mat > Cameramotion::Get_fundament
 
 	cout << matches.size() << " matches before, " << new_matches.size() << " new matches after Fundamental Matrix\n";
 	//keep only those points that survived the fundamental matrix
-	matches = new_matches;
+	
 
 	
 
-	return boost::make_tuple(good_keypoints1,good_keypoints2,F);
+	return boost::make_tuple(good_keypoints1,good_keypoints2,F,new_matches);
 
 }
 
