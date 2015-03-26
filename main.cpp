@@ -198,6 +198,7 @@ void Stream (int stream_code)
 		//do a loop back to void Stream after connect the camera
 	}
 
+	
 
 
 	
@@ -219,7 +220,7 @@ void Stream (int stream_code)
 		waitKey(30);
 		cout<<frame_no<<endl;
 
-		if (frame_no%30==0)
+		if (frame_no%20==0)
 		{
 			frames.push_back(frame);
 			cout<<"Captured"<<endl;
@@ -262,7 +263,7 @@ void Stream_Process(Mat_<double> KMatrix)
 	while (a<frames_reconstructed)
 	{
 		Mat frame,frame_back;
-		vector<double> reproj_error;
+
 		try
 		{
 			//Get frame
@@ -304,86 +305,79 @@ void Stream_Process(Mat_<double> KMatrix)
 				Mat essentialmatrix = baseline.Get_essentialMatrix(KMatrix,fundamentalmatrix);
 	
 				//Get the camera matrices
-				Matx34d cameramatrix(1,0,0,0,0,1,0,0,0,0,1,0);
+				Matx34d cameramatrix(0,0,0,0,0,0,0,0,0,0,0,0);
 				Matx34d cameramatrix1 = baseline.Get_cameraMatrix(essentialmatrix);
-				
-				if (cameramatrix1 != cameramatrix) //the rotation matrix is invalid
-				{
-					//Get calibrated camera matrix
-					Mat_<double> KCameramatrix1 = KMatrix*Mat(cameramatrix1);
 
-					//Triangulate the points
-					Triangulatepoints base(cameramatrix,cameramatrix1); //send the two images
-					unsigned int pts_size = pt_set1.size();
-					cout<< pt_set1.size()<< " "<< pt_set2.size()<<endl;
-					for (unsigned int i=0;i<pts_size;i++)//pt_set1.size()
-					{	
+				//Get calibrated camera matrix
+				Mat_<double> KCameramatrix1 = KMatrix*Mat(cameramatrix1);
+
+				//Triangulate the points
+				Triangulatepoints base(cameramatrix,cameramatrix1); //send the two images
+				unsigned int pts_size = pt_set1.size();
+				cout<< pt_set1.size()<< " "<< pt_set2.size()<<endl;
+				for (unsigned int i=0;i<pts_size;i++)//pt_set1.size()
+				{	
 					
-						//Create homo keypoint 1
-						Point2f kp = pt_set1[i].pt;
-						Point3d u(kp.x,kp.y,1.0);
+					//Create homo keypoint 1
+					Point2f kp = pt_set1[i].pt;
+					Point3d u(kp.x,kp.y,1.0);
 						
-						//Normalize homo keypoint 1
-						Mat_<double> um = KMatrix.inv()*Mat_<double>(u);
-						u.x = um(0);
-						u.y = um(1);
-						u.z = um(2);
+					//Normalize homo keypoint 1
+					Mat_<double> um = KMatrix.inv()*Mat_<double>(u);
+					u.x = um(0);
+					u.y = um(1);
+					u.z = um(2);
 	
-						//Create homo keypoint 2
-						Point2f kp1 = pt_set2[i].pt;
-						Point3d u1(kp1.x,kp1.y,1.0);
+					//Create homo keypoint 2
+					Point2f kp1 = pt_set2[i].pt;
+					Point3d u1(kp1.x,kp1.y,1.0);
 
-						//Normalize homo keypoint 2
-						Mat_<double> um1 = KMatrix.inv()*Mat_<double>(u1);
-						u1.x = um1(0);
-						u1.y = um1(1);
-						u1.z = um1(2);
+					//Normalize homo keypoint 2
+					Mat_<double> um1 = KMatrix.inv()*Mat_<double>(u1);
+					u1.x = um1(0);
+					u1.y = um1(1);
+					u1.z = um1(2);
 
 
-						//Triangulate points
-						Mat_<double> X = base.Linearleastsquares_triangulation(u,u1);
-
-						//Calculate the reprojection error
-						Mat_<double> xPt_img =  KCameramatrix1*X; //Get the second image coordinate from the triangulated 3D point
-						Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
-					
-						//ADD REPROJECTION ERROR TO REPROJECTION ERROR LIST
-						reproj_error.push_back(norm(xPt_img_ - kp1));
-						
-						//Convert 3D point type to PCL
-						pcl::PointXYZRGB pclp; 
-						pclp.x = X(0);
-						pclp.y = X(1);
-						pclp.z = X(2);
-						pclp.rgb = *reinterpret_cast<float*>(&rgb);
-						
-						//Add 3D point to point cloud
-						cloud->push_back(pclp);	
-
-					}
+					//Triangulate points
+					Mat_<double> X = base.Linearleastsquares_triangulation(u,u1);
 
 					//Calculate the reprojection error
-					Scalar mean_projerror = mean (reproj_error);
-					cout<<"The mean reprojection error :" <<mean_projerror[0]<<endl;	
+					Mat_<double> xPt_img =  KCameramatrix1*X; //Get the second image coordinate from the triangulated 3D point
+					Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
+					//error = norm(xPt_img_ - kp1);
 	
-					//print out the point count
-					cout<<cloud->points.size()<<endl;
+					//ADD REPROJECTION ERROR TO REPROJECTION ERROR LIST
+					//reproj_error.push_back(error); 
+						
+					//Convert 3D point type to PCL
+					pcl::PointXYZRGB pclp; 
+					pclp.x = X(0);
+					pclp.y = X(1);
+					pclp.z = X(2);
+					pclp.rgb = *reinterpret_cast<float*>(&rgb);
+						
+					//Add 3D point to point cloud
+					cloud->push_back(pclp);	
+
+				}
+
+				//Calculate the reprojection error
+				//mean_projerror = mean (reproj_error);
+				//cout<<"The mean reprojection error :" <<mean_projerror[0]<<endl;	
 	
-					//Visualize the point cloud 
-					cloud->width = (uint32_t) cloud->points.size(); //number of points
-					cloud->height = 1; //a list of points, one row of data
+				//print out the point count
+				//cout<<cloud->points.size()<<endl;
+	
+				//Visualize the point cloud 
+				cloud->width = (uint32_t) cloud->points.size(); //number of points
+				cloud->height = 1; //a list of points, one row of data
 			
 		
-					viewer.showCloud(cloud);
+				viewer.showCloud(cloud);
 		
-					baseline_state="Baseline reconstructed";
-					a++;
-				}
-				else
-				{
-					cout<<"the camera matrix is invalid-these two frames cant be reconstructed"<<endl;
-				}
-			
+				baseline_state="Baseline reconstructed";
+				a++;
 			}	
 
 			else
@@ -470,8 +464,6 @@ int main(int argc, char** argv)
 	{
 		KMatrix = Stream_Calibrate(stream_code,frame_width,frame_length);
 	}
-
-
 
 	//Run capturing and processing at the same time
 	boost::thread_group tgroup;

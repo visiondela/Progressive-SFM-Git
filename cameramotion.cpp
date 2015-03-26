@@ -107,13 +107,12 @@ boost::tuple<vector<KeyPoint>,vector<KeyPoint>,Mat,vector<DMatch>  > Cameramotio
 	{
 		imgpts2.push_back(aligned_keypoints2[i].pt);
 	}
-	//Find out the minimum distance points can be from epipolar line before they are marked as outliers and not included in calculating fundamental matrix
 
 	double minVal,maxVal;
 	cv::minMaxIdx(imgpts1,&minVal,&maxVal);
-	//calculate the fundamental matrix using ransac
 	F = findFundamentalMat(imgpts1,imgpts2, FM_RANSAC, 0.006 * maxVal, 0.99, status);
 
+<<<<<<< HEAD
 	//Create a structure that has the aligned keypoints and the index of their corresponding image point in frame 2
 
 	struct CloudPoint
@@ -124,13 +123,14 @@ boost::tuple<vector<KeyPoint>,vector<KeyPoint>,Mat,vector<DMatch>  > Cameramotio
 
 
 	//status is an array of N elements - element is set to 0 for outliers and 1 for current points
+=======
+>>>>>>> parent of 4b58625... Baseline 3D points correctly reconstructed
 	vector<DMatch> new_matches;
-	//print out how many of the keypoints correspond to the fundamental matrix
 	cout<<"F Keeping" <<countNonZero(status)<< " / "<<status.size()<<endl;
-	//get the keypoints which correspond to the fundamental matrix
+
 	for (int i = 0; i<status.size(); i ++)
 	{
-		if (status[i]) //if the point is not an outlier - ie 1 which is true
+		if (status[i])
 		{
 			good_keypoints1.push_back(aligned_keypoints1[i]);
 			good_keypoints2.push_back(aligned_keypoints2[i]);
@@ -151,9 +151,13 @@ boost::tuple<vector<KeyPoint>,vector<KeyPoint>,Mat,vector<DMatch>  > Cameramotio
 	//keep only those points that survived the fundamental matrix
 	
 
+<<<<<<< HEAD
 	
 
 	return boost::make_tuple(good_keypoints1,good_keypoints2,F,new_matches);
+=======
+	return boost::make_tuple(good_keypoints1,good_keypoints2,F);
+>>>>>>> parent of 4b58625... Baseline 3D points correctly reconstructed
 
 }
 
@@ -194,8 +198,7 @@ Matx34d Cameramotion::Get_cameraMatrix(Mat E)
 	if (fabsf(determinant(R))-1.0>1e-07)
 	{
 		cerr<<"det(R) != +-1,0, this is not a rotation matrix"<<endl;
-		Matx34d P(1,0,0,0,0,1,0,0,0,0,1,0);
-		return P; //if not return old camera matrix
+		return 0;
 	}
 	
 	else
