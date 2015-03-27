@@ -44,7 +44,7 @@ class Cameramotion
 		//FUNCTION: FIND POINT MATCHES -RICH FEATURES
 		boost::tuple<vector<KeyPoint> ,vector<KeyPoint> , vector<DMatch> > Getpointmatches_richfeatures();
 		//FUNCTION: GET FUNDAMENTAL MATRIX
-		boost::tuple<vector<KeyPoint>,vector<KeyPoint>,Mat,vector<DMatch> > Get_fundamentalmatrix(vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch>);
+		boost::tuple<vector<KeyPoint>,vector<KeyPoint>,Mat> Get_fundamentalmatrix(vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch>);
 		//FUNCTION: GET ESSENTIAL MATRIX
 		Mat Get_essentialMatrix(Mat K,Mat F);
 		//FUNCTION: GET CAMERA MATRIX
