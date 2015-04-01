@@ -1,17 +1,7 @@
-//Progressive Structure from Motion
-//************************************************************************************************
-//Matthew Westaway
-//************************************************************************************************
-//Calibration class headerfile
-//************************************************************************************************
+//Progressive SFM - Matthew Westaway - 2015-04-01
+//Calibration.h
 
-
-
-
-
-//#####################      INCLUDES     #######################
-
-//OpenCV
+//OpenCV libraries
 #include <opencv2\core\core.hpp>
 #include <opencv2\features2d\features2d.hpp>
 #include <opencv2\features2d\features2d.hpp>
@@ -20,38 +10,30 @@
 #include <opencv2\highgui\highgui.hpp>
 #include <opencv2\calib3d\calib3d.hpp>
 
-//STL
+//STL libraries
 #include <vector>
 
-//STD
+//STD libraries
 #include <iostream>
 
 using namespace std;
 using namespace cv;
 
-//#####################      CALIBRATION CLASS     #######################
-
 class Calibration
 {
-	//PRIVATE
+
 	private:
-		//VARIABLES
-		Mat cameraMatrix; //cameraMatrix 1
-		Mat distCoeffs; //Dist coefficients
-		vector<Mat> rvecs;   
-		vector<Mat> tvecs;
 		vector<vector<Point2f>> theimagepoints; //Imagepoints
 		vector<vector<Point3f>> thearrayObjectPoints; //Objectpoints
-		double width,length;//frame width and length 
-
-	//PUBLIC
+		double width; //Frame_width
+		double length;//Frame length
 
 	public:
-		//CONSTRUCTOR	
+		//Constructor
 		Calibration(vector<vector<Point2f>> imagepoints,vector<vector<Point3f>> arrayObjectPoints,double frame_width,double frame_length);
-		//FUNCTION: GET CAMERA MATRIX
-		Mat get_cameramatrix();
-		//FUNCTION: GET DISTORTION COEFFICINETS 
+		//Get calibration matrix
+		Mat get_kmatrix();
+		//Get distortion coefficients
 		Mat get_disortioncoefficients();
 	
 		

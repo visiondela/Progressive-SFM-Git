@@ -1,52 +1,45 @@
-//Progressive Structure from Motion
-//************************************************************************************************
-//Matthew Westaway
-//************************************************************************************************
-//Calibration class
-//************************************************************************************************
+//Progressive SFM - Matthew Westaway - 2015-04-01
+//Calibration.cpp
 
-
-
-
-
-//#####################      HEADER FILE INCLUDES     #######################
-
+//Header file includes
 #pragma once
 #include "calibration.h"
 
-
-
-//#####################      CONSTRUCTOR     #######################
-
+//Constructor
 Calibration::Calibration(vector<vector<Point2f>>imagepoints,vector<vector<Point3f>>arrayObjectPoints,double frame_width,double frame_length)
 {
-	
 		theimagepoints = imagepoints;
 		thearrayObjectPoints = arrayObjectPoints;
 		width = frame_width;
 		length = frame_length;
 }
 
-//#####################     FUNCTION: GET CAMERA/CALIBRATION MATRIX      #######################
-Mat Calibration::get_cameramatrix()
-{
-				//CREATE OBJECT POINTS FOR CHECKERBOARD
-
+//Function to get calibration matrix
+Mat Calibration::get_kmatrix()
+{	
 		Size imageSize(width,length);
+		Mat KMatrix; //Calibration matrix
+		Mat distCoeffs; //Dist coefficients
+		vector<Mat> rvecs;   
+		vector<Mat> tvecs;
+
 		//Calibrate Camera
-		double rms = calibrateCamera(thearrayObjectPoints,theimagepoints,imageSize, cameraMatrix, distCoeffs,  rvecs, tvecs);
+		double rms = calibrateCamera(thearrayObjectPoints,theimagepoints,imageSize, KMatrix, distCoeffs,  rvecs, tvecs);
 		cout<<"the RMS is "<<rms<<endl;
-		return cameraMatrix;
-		
+		return KMatrix;
+	
 }
 
-//#####################     FUNCTION: GET DISTORTION COEFFICIENTS      #######################
+//Function to get distortion coefficients
 Mat Calibration::get_disortioncoefficients()
 {
-
 		Size imageSize(width,length);
+		Mat KMatrix; //Calibration matrix
+		Mat distCoeffs; //Dist coefficients
+		vector<Mat> rvecs;   
+		vector<Mat> tvecs;
+
 		//Calibrate Camera      
-		calibrateCamera(thearrayObjectPoints,theimagepoints,imageSize, cameraMatrix, distCoeffs,  rvecs, tvecs);
-		return distCoeffs;
-		
+		calibrateCamera(thearrayObjectPoints,theimagepoints,imageSize, KMatrix, distCoeffs,  rvecs, tvecs);
+		return distCoeffs;	
 }
