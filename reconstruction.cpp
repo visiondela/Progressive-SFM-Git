@@ -138,7 +138,7 @@ vector<DMatch> Reconstruction::Prunematches(vector<KeyPoint> detected_keypoints1
 }
 
 //Function to get the fundamental matrix
-Mat Reconstruction::Getfundamentalmatrix(vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch> matches)
+Mat_<double> Reconstruction::Getfundamentalmatrix(vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch> matches)
 {
 	vector<Point2f> imgpts1, imgpts2;
 
@@ -157,7 +157,7 @@ Mat Reconstruction::Getfundamentalmatrix(vector<KeyPoint> keypoints1,vector<KeyP
 }
 
 //Function to get essential matrix
-Mat Reconstruction::Getessentialmatrix(Mat K,Mat F)
+Mat_<double> Reconstruction::Getessentialmatrix(Mat K,Mat F)
 {
 	Mat E = K.t()*F*K; //accordig to HZ equation
 
@@ -165,35 +165,114 @@ Mat Reconstruction::Getessentialmatrix(Mat K,Mat F)
 }
 
 //Function to get camera matrix for right image
-Matx34d Reconstruction::Getcameramatrix_right(Mat E)
+Matx34d Reconstruction::Getcameramatrix_right(Mat E, Mat KMatrix,vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch> matches)
 {
-	//SVD the essential matrix
+	//cout<<"TEST!!!!!"<<endl;
 	SVD svd(E); 
+	Mat W = (Mat_<double>(3,3)<<0,-1,0,1,0,0,0,0,1);
+	Mat u = svd.u;
+	Mat vt = svd.vt;
+	Mat_<double> R;
+	Mat_<double> t;
+	Matx34d P;
+	vector<vector<Mat>> cameramatrices;
+	vector<Mat> cameramatrix;
+	//cout<<"TEST222!!!!!"<<endl;
+	//Add first option
+	cameramatrix.push_back(u*W*vt);
+	cameramatrix.push_back(u.col(2));
+	cameramatrices.push_back(cameramatrix);
+	cameramatrix.clear();
 
-	//Get R and T
-	Matx33d W(0,-1,0,1,0,0,0,0,1);
-	Matx33d Winv(0,1,0,-1,0,0,0,0,1);	 
-	Mat_<double> R = svd.u*Mat(W)*svd.vt; 
-	Mat_<double> t = svd.u.col(2);
+	//Add second option
+	cameramatrix.push_back(u*W*vt);
+	cameramatrix.push_back(-u.col(2));
+	cameramatrices.push_back(cameramatrix);
+	cameramatrix.clear();
 
-	//Build the camera matrix
-	Matx34d P1(R(0,0),R(0,1),R(0,2),t(0),R(1,0),R(1,1),R(1,2),t(1),R(2,0),R(2,1),R(2,2),t(2)); //There are 4 possible camera matrices
+	//Add third option
+	cameramatrix.push_back(u*(W.t())*vt);
+	cameramatrix.push_back(u.col(2));
+	cameramatrices.push_back(cameramatrix);
+	cameramatrix.clear();
 
-	//Check to see if our camera matrices are fault free- if have an error we know our fundamental matrices - aquired from point matching may be erroneous
-	//We check by seeing if the rotation element is a valid rotation matricx - must have determinant of (1)or (-1)
+	//Add fourth option
+	cameramatrix.push_back(u*(W.t())*vt);
+	cameramatrix.push_back(-u.col(2));
+	cameramatrices.push_back(cameramatrix);
+	cameramatrix.clear();
+		//cout<<"TEST233322!!!!!"<<endl;
+	int count=0;
+	for (int a = 0;a<4;a++)
+	{ 
+		cout<<"a/4"<<a<<endl;
+		R = cameramatrices[a][0];
+		t = cameramatrices[a][1]; 
+			
+		for (int i = 0 ;i<matches.size();i++)
+		{
 
-	//Check camera matrix
+			Point2f t1 = keypoints1[matches[i].queryIdx].pt;
+			Point3d test1_u(t1.x,t1.y,1.0);
+					
+			Point2f t2 = keypoints2[matches[i].trainIdx].pt;
+			Point3d test2_u(t2.x,t2.y,1.0);
 
+			//Normalize homogeenous keypoint
+			Mat_<double> p1 = KMatrix.inv()*Mat_<double>(test1_u);
+			Mat_<double> p2 = KMatrix.inv()*Mat_<double>(test2_u);
+
+			Mat A = (Mat_<double>(1,3)<< p2(0),p2(1),p2(2));
+			cout<<p2(2)<<"   should be 1"<<endl;
+			double Top = (R.row(0)-p2(0)*R.row(2)).dot(t.t());
+			//cout<<"test2"<<endl;
+			double Bottom = (R.row(0)-p2(0)*R.row(2)).dot(A);
+
+			double z = Top/Bottom;
+			//cout<<"test3"<<endl;
+	
+			Mat_<double> X_1 = (Mat_<double>(3,1)<< p1(0)*z,p1(1)*z,z);
+			//cout<<"DONE2.5X_1"<<X_1<<endl;
+		
+			Mat_<double> X_2 = (R.t())*(X_1-t);
+			cout<<"X_1 AND X_2"<<X_1<<" X_2"<<X_2<<endl;
+			cout<<X_1.at<double>(2)<<" "<<X_2.at<double>(2)<<endl;
+
+			if (X_1.at<double>(2)<0 || X_2.at<double>(2)<0)
+			{
+				cout<<"The z is behind"<<endl;
+				break;
+			}
+
+			count++;
+		}
+		
+		if (count==matches.size()-1)
+		{
+			P = Matx34d(R(0,0),R(0,1),R(0,2),t(0),R(1,0),R(1,1),R(1,2),t(1),R(2,0),R(2,1),R(2,2),t(2));
+			cout<<"success"<<endl;
+			break;
+		}
+
+	}
+
+	if (count !=matches.size()-1)
+	{
+		P = Matx34d(1,0,0,0,0,1,0,0,0,0,1,0);
+		return P; //if not return old camera matrix
+	}
+	
 	if (fabsf(determinant(R))-1.0>1e-07)
 	{
+		cout<<"ERROR"<<endl;
 		cerr<<"det(R) != +-1,0, this is not a rotation matrix"<<endl;
-		Matx34d P(1,0,0,0,0,1,0,0,0,0,1,0);
+		P = Matx34d(1,0,0,0,0,1,0,0,0,0,1,0);
 		return P; //if not return old camera matrix
 	}
 	
 	else
 	{
-		return P1;
+		return P;
 	}
 	
 }

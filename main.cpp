@@ -328,16 +328,24 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				Mat essentialmatrix = baseline.Getessentialmatrix(KMatrix,fundamentalmatrix);
 			
 				//Get the camera matrices
-				cameramatrix_right = baseline.Getcameramatrix_right(essentialmatrix);
-			
+	
+				cameramatrix_right = baseline.Getcameramatrix_right(essentialmatrix, KMatrix,keypoints_left,keypoints_right,matches);
+				if (cameramatrix_right != Matx34d(1,0,0,0,0,1,0,0,0,0,1,0))
+				{
+					baseline_state = "reconstructed";
+				}
+
+				else
+				{
+
 				//Update the state of reconstruction
 		
 				cout<<"cameramatrix_left"<<cameramatrix_left<<endl;
 				cout<<"cameramatrix_right"<<cameramatrix_right<<endl;
 
 				//Get calibrated camera matrix
-				Mat_<double> KCameramatrix_right = KMatrix*Mat(cameramatrix_right);
-				baseline_state = "reconstructed";
+		
+				
 				
 				//Go through each point
 				for (unsigned int i=0;i<matches.size() ;i++)
@@ -360,13 +368,15 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 					u1.x = um1(0);
 					u1.y = um1(1);
 					u1.z = um1(2);
-					
+
+				
+
 					//Triangulate keypoint
 					
 					Mat_<double> X = baseline.Triangulatepoint_iterativeleastsquares(u,u1,cameramatrix_left,cameramatrix_right);
 					
 					//Calculate the reprojection error
-					Mat_<double> xPt_img =  KCameramatrix_right*X; //Get the second image coordinate from the triangulated 3D point
+					Mat_<double> xPt_img =  (KMatrix*Mat(cameramatrix_right))*X; //Get the second image coordinate from the triangulated 3D point
 					Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
 					//cout<<norm(xPt_img_ - kp1)<<endl;
 					reproj_error.push_back(norm(xPt_img_ - kp1));
@@ -377,7 +387,7 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 					newpoint.index_of_2d_origin.push_back(matches[i].queryIdx);
 					newpoint.index_of_2d_origin.push_back(matches[i].trainIdx);
 					pcloud.push_back(newpoint);
-					cout<<"z"<<X(2)<<endl;
+					//cout<<"z"<<X(2)<<endl;
 					//Convert 3D point type to PCL type
 					pcl::PointXYZRGB pclp; 
 					pclp.x = X(0);

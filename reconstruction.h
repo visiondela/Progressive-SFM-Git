@@ -34,11 +34,11 @@ class Reconstruction
 		//Prune matches
 		vector<DMatch> Prunematches(vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch> matches);
 		//Get fundamental matrix
-		Mat Getfundamentalmatrix(vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch> matches);
+		Mat_<double>  Getfundamentalmatrix(vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch> matches);
 		//Get essential matrix
-		Mat Getessentialmatrix(Mat K,Mat F);
+		Mat_<double>  Getessentialmatrix(Mat K,Mat F);
 		//Get camera matrix
-		Matx34d Getcameramatrix_right(Mat E);
+		Matx34d Getcameramatrix_right(Mat E, Mat K,vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch> matches);
 		//Triangulate a point by linear least squares
 		Mat_<double> Triangulatepoint_linearleastsquares(Point3d u1,Point3d u2,Matx34d P1,Matx34d P2);
 		//Triangulate a point by iterative least squares
