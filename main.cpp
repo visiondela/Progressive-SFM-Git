@@ -24,7 +24,7 @@
 
 #include <boost\thread.hpp>
 #include <boost\lexical_cast.hpp> //for printing out int
-#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost\date_time\posix_time\posix_time.hpp>
 
 //POINT CLOUD LIBRARY INCLUDES
 
@@ -198,9 +198,9 @@ boost::tuple<Mat_<double>,Mat_<double> > Stream_Calibrate (string stream_code)
 
 void Stream (string stream_code)
 {
-	cv::namedWindow("Stream");
-	
-	
+	cv::namedWindow("Stream",WINDOW_NORMAL );
+	//cv::namedWindow("Captures_left",WINDOW_NORMAL );
+	//cv::namedWindow("Captures_right",WINDOW_NORMAL );
 	VideoCapture cap(stream_code);
 	//cap.set(CV_CAP_PROP_POS_MSEC, 3000);
 
@@ -214,9 +214,9 @@ void Stream (string stream_code)
 		//do a loop back to void Stream after connect the camera
 	}
 
-
-
-	
+	cv::resizeWindow("Stream",cap.get(CV_CAP_PROP_FRAME_WIDTH)/4,cap.get(CV_CAP_PROP_FRAME_HEIGHT)/4);
+	//cv::resizeWindow("Captures_left",cap.get(CV_CAP_PROP_FRAME_WIDTH)/4,cap.get(CV_CAP_PROP_FRAME_HEIGHT)/4);
+	//cv::resizeWindow("Captures_right",cap.get(CV_CAP_PROP_FRAME_WIDTH)/4,cap.get(CV_CAP_PROP_FRAME_HEIGHT)/4);
 	int frame_no=1;
 	int frames_captured = 0;
 	while(1)
@@ -256,13 +256,14 @@ void Stream (string stream_code)
 
 void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 {
-	
+	boost::this_thread::sleep(boost::posix_time::milliseconds(10000));
 	//Setup the point cloud for visualiation
 	pcl::visualization::CloudViewer viewer("3D Reconstruction");
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud; //create the point cloud
 	cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
 	Vec3b rgbv(255,255,255);  //black rgbv value for the point cloud
 	uint32_t rgb = ((uint32_t)rgbv[2]<<16 | (uint32_t)rgbv[1] << 8 | (uint32_t)rgbv[0]);
+	cv::namedWindow("Matches",WINDOW_NORMAL );
 
 	//Initialise that the state of the baseline
 	string baseline_state = "Baseline has not been reconstructed";
@@ -271,7 +272,7 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 	
 	//Setup our global point cloud for processing
 	vector <CloudPoint> pcloud; //our global point cloud
-	vector<int> pcloud_status(10000,0); //too see if points been used before
+	vector<int> pcloud_status(1000000,0); //too see if points been used before
 
 	//Initialise our key variables
 	vector<KeyPoint> keypoints_left; //Keypoints in left_frame
@@ -284,19 +285,36 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 	while (a<frames_reconstructed)
 	{
 		//Create array to store the left and right frame in
+		Mat frame_left_distorted;
+		Mat frame_right_distorted;
+		
+		//Create array to store the left and right frame after they have been undistorted
 		Mat frame_left;
 		Mat frame_right;
 		vector<double> reproj_error; //the reprojection error
 		
 		try
 		{
-			//Get frame
-			frame_right = frames.at(a);
-			frame_left = frames.at(a-1);
-
+			//Get frame and display
+			frame_right_distorted = frames.at(a);
+			frame_left_distorted = frames.at(a-1);
+			/*imshow("Captures_left",frame_left_distorted);
+			waitKey(30);
+			imshow("Captures_right",frame_right_distorted);
+			waitKey(30);
+*/
+			//Undistort frames
+			undistort(frame_right_distorted,frame_right,KMatrix,distcoeff);
+			undistort(frame_left_distorted,frame_left,KMatrix,distcoeff);
+			/*imshow("Captures_left",frame_left);
+			waitKey(30);
+			imshow("Captures_right",frame_right);
+			waitKey(30);*/
+				
+				
+				;
 			//Initialise 3D point vector of existing 3D points for PNP
 			vector<Point3f> ppcloud;
-			
 			//Initialise 2D point vector of points in new frame for PNP 
 			vector<Point2f> imgpoints;
 
@@ -330,93 +348,88 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				//Get the camera matrices
 	
 				cameramatrix_right = baseline.Getcameramatrix_right(essentialmatrix, KMatrix,keypoints_left,keypoints_right,matches);
-				if (cameramatrix_right != Matx34d(1,0,0,0,0,1,0,0,0,0,1,0))
+				
+				if (cameramatrix_right == Matx34d(1,0,0,0,0,1,0,0,0,0,1,0))
 				{
-					baseline_state = "reconstructed";
+					cout<<"The baseline frames are not good - the next pair of frames will be used as baseline frames"<<endl;
+					a++;
 				}
-
-				else
+				
+				else if (cameramatrix_right != Matx34d(1,0,0,0,0,1,0,0,0,0,1,0))
 				{
-
-				//Update the state of reconstruction
-		
-				cout<<"cameramatrix_left"<<cameramatrix_left<<endl;
-				cout<<"cameramatrix_right"<<cameramatrix_right<<endl;
-
-				//Get calibrated camera matrix
-		
+					//Update the state of reconstruction
 				
-				
-				//Go through each point
-				for (unsigned int i=0;i<matches.size() ;i++)
-				{	
+					//Go through each point
+					for (unsigned int i=0;i<matches.size() ;i++)
+					{	
 
-					//Homogeneousize keypoint
-					Point2f kp = keypoints_left[matches[i].queryIdx].pt;
-					Point3d u(kp.x,kp.y,1.0);
+						//Homogeneousize keypoint
+						Point2f kp = keypoints_left[matches[i].queryIdx].pt;
+						Point3d u(kp.x,kp.y,1.0);
 					
-					Point2f kp1 = keypoints_right[matches[i].trainIdx].pt;
-					Point3d u1(kp1.x,kp1.y,1.0);
+						Point2f kp1 = keypoints_right[matches[i].trainIdx].pt;
+						Point3d u1(kp1.x,kp1.y,1.0);
 
-					//Normalize homogeenous keypoint
-					Mat_<double> um = KMatrix.inv()*Mat_<double>(u);
-					u.x = um(0);
-					u.y = um(1);
-					u.z = um(2);
+						//Normalize homogeenous keypoint
+						Mat_<double> um = KMatrix.inv()*Mat_<double>(u);
+						u.x = um(0);
+						u.y = um(1);
+						u.z = um(2);
 
-					Mat_<double> um1 = KMatrix.inv()*Mat_<double>(u1);
-					u1.x = um1(0);
-					u1.y = um1(1);
-					u1.z = um1(2);
+						Mat_<double> um1 = KMatrix.inv()*Mat_<double>(u1);
+						u1.x = um1(0);
+						u1.y = um1(1);
+						u1.z = um1(2);
 
 				
 
-					//Triangulate keypoint
+						//Triangulate keypoint
 					
-					Mat_<double> X = baseline.Triangulatepoint_iterativeleastsquares(u,u1,cameramatrix_left,cameramatrix_right);
+						Mat_<double> X = baseline.Triangulatepoint_iterativeleastsquares(u,u1,cameramatrix_left,cameramatrix_right);
 					
-					//Calculate the reprojection error
-					Mat_<double> xPt_img =  (KMatrix*Mat(cameramatrix_right))*X; //Get the second image coordinate from the triangulated 3D point
-					Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
-					//cout<<norm(xPt_img_ - kp1)<<endl;
-					reproj_error.push_back(norm(xPt_img_ - kp1));
+						//Calculate the reprojection error
+						Mat_<double> xPt_img =  (KMatrix*Mat(cameramatrix_right))*X; //Get the second image coordinate from the triangulated 3D point
+						Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
+						//cout<<norm(xPt_img_ - kp1)<<endl;
+						reproj_error.push_back(norm(xPt_img_ - kp1));
 				
-					//Add 3D point to our global point cloud
-					CloudPoint newpoint;
-					newpoint.pt = Point3d(X(0),X(1),X(2));
-					newpoint.index_of_2d_origin.push_back(matches[i].queryIdx);
-					newpoint.index_of_2d_origin.push_back(matches[i].trainIdx);
-					pcloud.push_back(newpoint);
-					//cout<<"z"<<X(2)<<endl;
-					//Convert 3D point type to PCL type
-					pcl::PointXYZRGB pclp; 
-					pclp.x = X(0);
-					pclp.y = X(1);
-					pclp.z = X(2);
-					pclp.rgb = *reinterpret_cast<float*>(&rgb);
+						//Add 3D point to our global point cloud
+						CloudPoint newpoint;
+						newpoint.pt = Point3d(X(0),X(1),X(2));
+						newpoint.index_of_2d_origin.push_back(matches[i].queryIdx);
+						newpoint.index_of_2d_origin.push_back(matches[i].trainIdx);
+						pcloud.push_back(newpoint);
+						//cout<<"z"<<X(2)<<endl;
+						//Convert 3D point type to PCL type
+						pcl::PointXYZRGB pclp; 
+						pclp.x = X(0);
+						pclp.y = X(1);
+						pclp.z = X(2);
+						pclp.rgb = *reinterpret_cast<float*>(&rgb);
 						
-					//Add 3D point to point cloud
-					cloud->push_back(pclp);	
+						//Add 3D point to point cloud
+						cloud->push_back(pclp);	
 			
+					}
+
+					//Calculate the mean reprojection error
+					Scalar mean_projerror = mean(reproj_error);
+					cout<<"The mean reprojection error :" <<mean_projerror[0]<<endl;	
+	
+					//Print out the point count
+					//cout<<cloud->points.size()<<endl;
+	
+					//Visualize the point cloud 
+					cloud->width = (uint32_t) cloud->points.size(); //number of points
+					cloud->height = 1; //a list of points, one row of data
+					viewer.showCloud(cloud);
+			
+					//Move onto the next frame
+					baseline_state = "reconstructed";
+					a++;
 				}
 
-				//Calculate the mean reprojection error
-				Scalar mean_projerror = mean(reproj_error);
-				cout<<"The mean reprojection error :" <<mean_projerror[0]<<endl;	
-	
-				//Print out the point count
-				//cout<<cloud->points.size()<<endl;
-	
-				//Visualize the point cloud 
-				cloud->width = (uint32_t) cloud->points.size(); //number of points
-				cloud->height = 1; //a list of points, one row of data
-				viewer.showCloud(cloud);
-		
-				//Move onto the next frame
-			
 			}
-
-
 			else if (baseline_state == "reconstructed")
 			{
 				//Call the constructor
@@ -425,7 +438,8 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				//Get camera matrix and keypoints in new frame ( old right frame)
 				cameramatrix_left = cameramatrix_right;
 				keypoints_left = keypoints_right; //Use previous right frame keypoints 
-				
+			
+
 				keypoints_right = nextview.Getkeypoints_right(); //Get keypoints in left frame
 			
 
@@ -465,14 +479,13 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				//solvePnPRansac(ppcloud,imgpoints,KMatrix,distcoeff,rvec,t,false,CV_ITERATIVE );
 				solvePnPRansac(ppcloud,imgpoints,KMatrix,distcoeff,rvec,t,false,500,8,0.9*imgpoints.size(),noArray(),ITERATIVE);
 				Rodrigues(rvec,R);
-				cout<<"R"<<R<<endl;
+				//cout<<"R"<<R<<endl;
 				cameramatrix_right = Matx34d(R(0,0),R(0,1),R(0,2),t(0),R(1,0),R(1,1),R(1,2),t(1),R(2,0),R(2,1),R(2,2),t(2));
 				
 				ppcloud.clear();
 				imgpoints.clear();
 
-				//Get calibrated camera matrix
-				Mat_<double> KCameramatrix_right = KMatrix*Mat(cameramatrix_right);
+			
 				
 				//Go through each point
 				for (unsigned int i=0;i<matches.size() ;i++)
@@ -500,7 +513,7 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 					Mat_<double> X = nextview.Triangulatepoint_iterativeleastsquares(u,u1,cameramatrix_left,cameramatrix_right);
 					
 					//Calculate the reprojection error
-					Mat_<double> xPt_img =  KCameramatrix_right*X; //Get the second image coordinate from the triangulated 3D point
+					Mat_<double> xPt_img =  (KMatrix*Mat(cameramatrix_right))*X; //Get the second image coordinate from the triangulated 3D point
 					Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
 					//cout<<norm(xPt_img_ - kp1)<<endl;
 					reproj_error.push_back(norm(xPt_img_ - kp1));
@@ -526,7 +539,7 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 
 				//Calculate the mean reprojection error
 				Scalar mean_projerror = mean(reproj_error);
-				cout<<"The mean reprojection error :" <<mean_projerror[0]<<endl;	
+				cout<<"Capture number no...Reeconstructed with a mean reprojection error :" <<mean_projerror[0]<<endl;	
 	
 				//Print out the point count
 				//cout<<cloud->points.size()<<endl;
@@ -536,15 +549,15 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				cloud->height = 1; //a list of points, one row of data
 				viewer.showCloud(cloud);
 		
-				
+				a++;
 			}
 			
 
-			a++;
+			
 		}
 		catch(...)
 		{
-			
+			cout<<"fail catch"<<endl;
 		}
 	}
 
@@ -564,6 +577,7 @@ int main(int argc, char** argv)
 	cout<<"Enter the stream address: 2 or 0 or http://192.168.2.201:8080/video?x.mjpeg or http://192.168.43.1:8080/video?x.mjpeg or  http://10.117.45.249:8080/video?x.mjpeg "<<endl;
 	string stream_code;
 	stream_code = "C:/Users/Matthew/Documents/Visual Studio 2010/Projects/Program 2  - Progressive Structure from Motion/ProgressiveSFM/Images/20150330_091845old.mp4";
+	//stream_code = "http://192.168.43.1:8080/video?x.mjpeg";
 	string calib_code = "http://192.168.43.1:8080/video?x.mjpeg";
 	
 	//Find out whether the camera needs to be calibrared.
@@ -609,18 +623,22 @@ int main(int argc, char** argv)
 
 
 	//Create a thread group for capturing and processing
-	boost::thread_group tgroup;
+	//boost::thread_group tgroup;
 
+	//
+	//tgroup.create_thread(boost::bind(&Stream,stream_code));
+
+	//tgroup.create_thread(boost::bind(&Stream_Process,KMatrix,distortion_coeff));
+	//
+	boost::thread t1(&Stream,stream_code);
+	boost::thread t2(&Stream_Process,KMatrix,distortion_coeff);
 	
-	tgroup.create_thread(boost::bind(&Stream,stream_code));
 
-	tgroup.create_thread(boost::bind(&Stream_Process,KMatrix,distortion_coeff));
-	//boost::this_thread::sleep(boost::posix_time::milliseconds(30000000));
-
-	
+	t1.join();
+	t2.join();
 
 	//Join threads to main so to wait for all to finish
-	tgroup.join_all(); 
-
+	/*tgroup.join_all(); 
+*/
 	return 0;	
 }

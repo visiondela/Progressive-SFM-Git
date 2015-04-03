@@ -50,8 +50,8 @@ vector<DMatch> Reconstruction::Getmatches_richfeatures (vector<KeyPoint> keypoin
 	drawMatches(img1,keypoints1,img2,keypoints2,matches,img_matches);
 
 	//Show matches
-	imshow("Allthematches", img_matches);
-	waitKey(400);
+	imshow("Matches", img_matches);
+	waitKey(30);
 
 	return matches;
 }
@@ -99,7 +99,7 @@ vector<DMatch> Reconstruction::Prunematches(vector<KeyPoint> detected_keypoints1
 	vector<DMatch> new_matches;
 	
 	//print out how many of the keypoints correspond to the fundamental matrix
-	cout<<"F Keeping" <<countNonZero(status)<< " / "<<status.size()<<endl;
+	//cout<<"F Keeping" <<countNonZero(status)<< " / "<<status.size()<<endl;
 	
 	//get the keypoints which correspond to the fundamental matrix
 	for (int i = 0; i<status.size(); i ++)
@@ -122,7 +122,7 @@ vector<DMatch> Reconstruction::Prunematches(vector<KeyPoint> detected_keypoints1
 		}
 	}
 
-	cout << matches.size() << " matches before, " << new_matches.size() << " new matches after Fundamental Matrix\n";
+	//cout << matches.size() << " matches before, " << new_matches.size() << " new matches after Fundamental Matrix\n";
 	//keep only those points that survived the fundamental matrix
 	//matches = new_matches;
 	
@@ -131,8 +131,8 @@ vector<DMatch> Reconstruction::Prunematches(vector<KeyPoint> detected_keypoints1
 	drawMatches(img1,detected_keypoints1,img2,detected_keypoints2,new_matches,img_matches);
 
 	//Show matches
-	imshow("Prunedmatches", img_matches);
-	waitKey(400);
+	imshow("Matches", img_matches);
+	waitKey(30);
 	return new_matches;
 
 }
@@ -167,7 +167,7 @@ Mat_<double> Reconstruction::Getessentialmatrix(Mat K,Mat F)
 //Function to get camera matrix for right image
 Matx34d Reconstruction::Getcameramatrix_right(Mat E, Mat KMatrix,vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch> matches)
 {
-	//cout<<"TEST!!!!!"<<endl;
+
 	SVD svd(E); 
 	Mat W = (Mat_<double>(3,3)<<0,-1,0,1,0,0,0,0,1);
 	Mat u = svd.u;
@@ -177,7 +177,7 @@ Matx34d Reconstruction::Getcameramatrix_right(Mat E, Mat KMatrix,vector<KeyPoint
 	Matx34d P;
 	vector<vector<Mat>> cameramatrices;
 	vector<Mat> cameramatrix;
-	//cout<<"TEST222!!!!!"<<endl;
+
 	//Add first option
 	cameramatrix.push_back(u*W*vt);
 	cameramatrix.push_back(u.col(2));
@@ -201,17 +201,19 @@ Matx34d Reconstruction::Getcameramatrix_right(Mat E, Mat KMatrix,vector<KeyPoint
 	cameramatrix.push_back(-u.col(2));
 	cameramatrices.push_back(cameramatrix);
 	cameramatrix.clear();
-		//cout<<"TEST233322!!!!!"<<endl;
-	int count=0;
+	
+	int count;
+
 	for (int a = 0;a<4;a++)
 	{ 
-		cout<<"a/4"<<a<<endl;
+		count = 0;
+		cout<<"a/4  "<<a<<endl;
 		R = cameramatrices[a][0];
 		t = cameramatrices[a][1]; 
 			
 		for (int i = 0 ;i<matches.size();i++)
 		{
-
+			//Create homogeenous keypoint
 			Point2f t1 = keypoints1[matches[i].queryIdx].pt;
 			Point3d test1_u(t1.x,t1.y,1.0);
 					
@@ -223,56 +225,51 @@ Matx34d Reconstruction::Getcameramatrix_right(Mat E, Mat KMatrix,vector<KeyPoint
 			Mat_<double> p2 = KMatrix.inv()*Mat_<double>(test2_u);
 
 			Mat A = (Mat_<double>(1,3)<< p2(0),p2(1),p2(2));
-			cout<<p2(2)<<"   should be 1"<<endl;
 			double Top = (R.row(0)-p2(0)*R.row(2)).dot(t.t());
-			//cout<<"test2"<<endl;
 			double Bottom = (R.row(0)-p2(0)*R.row(2)).dot(A);
-
 			double z = Top/Bottom;
-			//cout<<"test3"<<endl;
 	
 			Mat_<double> X_1 = (Mat_<double>(3,1)<< p1(0)*z,p1(1)*z,z);
-			//cout<<"DONE2.5X_1"<<X_1<<endl;
-		
+
 			Mat_<double> X_2 = (R.t())*(X_1-t);
-			cout<<"X_1 AND X_2"<<X_1<<" X_2"<<X_2<<endl;
-			cout<<X_1.at<double>(2)<<" "<<X_2.at<double>(2)<<endl;
 
 			if (X_1.at<double>(2)<0 || X_2.at<double>(2)<0)
 			{
-				cout<<"The z is behind"<<endl;
-				break;
+				count++;
 			}
-
-			count++;
 		}
+
 		
-		if (count==matches.size()-1)
-		{
-			P = Matx34d(R(0,0),R(0,1),R(0,2),t(0),R(1,0),R(1,1),R(1,2),t(1),R(2,0),R(2,1),R(2,2),t(2));
-			cout<<"success"<<endl;
+		
+		if (count<0.25*matches.size())
+		{	
+
 			break;
 		}
 
 	}
 
-	if (count !=matches.size()-1)
+	if (count<0.25*matches.size())
 	{
-		P = Matx34d(1,0,0,0,0,1,0,0,0,0,1,0);
-		return P; //if not return old camera matrix
-	}
-	
-	if (fabsf(determinant(R))-1.0>1e-07)
-	{
-		cout<<"ERROR"<<endl;
-		cerr<<"det(R) != +-1,0, this is not a rotation matrix"<<endl;
-		P = Matx34d(1,0,0,0,0,1,0,0,0,0,1,0);
-		return P; //if not return old camera matrix
-	}
-	
-	else
-	{
+		P = Matx34d(R(0,0),R(0,1),R(0,2),t(0),R(1,0),R(1,1),R(1,2),t(1),R(2,0),R(2,1),R(2,2),t(2));
+		cout<<"Correct baseline camera matrix found. The percentage of points reconstructed in front of the camera is"<<100*count/matches.size()<<endl;
 		return P;
+	}
+
+	else if (count>0.25*matches.size())
+	{
+		cout<<"ERROR-more than 25 percent many points behind the camera"<<endl;
+		P = Matx34d(1,0,0,0,0,1,0,0,0,0,1,0);		
+		return P;
+
+	}
+	
+	else if (fabsf(determinant(R))-1.0>1e-07)
+	{
+		cout<<"ERROR-determinant rotation matrix not equal to 1"<<endl;
+		//cerr<<"det(R) != +-1,0, this is not a rotation matrix"<<endl;
+		P = Matx34d(1,0,0,0,0,1,0,0,0,0,1,0);
+		return P; //if not return old camera matrix
 	}
 	
 }
