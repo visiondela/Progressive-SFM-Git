@@ -55,6 +55,9 @@ vector<DMatch> Reconstruction::Getmatches_richfeatures (vector<KeyPoint> keypoin
 	//Show matches
 	imshow("Matches", img_matches);
 	waitKey(30);
+<<<<<<< HEAD
+>>>>>>> parent of 8aa4d85... Saturday morning
+=======
 >>>>>>> parent of 8aa4d85... Saturday morning
 
 	return matches;
@@ -130,8 +133,11 @@ vector<DMatch> Reconstruction::Prunematches(vector<KeyPoint> detected_keypoints1
 	//keep only those points that survived the fundamental matrix
 	//matches = new_matches;
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
+=======
+>>>>>>> parent of 8aa4d85... Saturday morning
 	
 	//Draw the matches
 	Mat img_matches; //Img_matches
@@ -140,6 +146,9 @@ vector<DMatch> Reconstruction::Prunematches(vector<KeyPoint> detected_keypoints1
 	//Show matches
 	imshow("Matches", img_matches);
 	waitKey(30);
+<<<<<<< HEAD
+>>>>>>> parent of 8aa4d85... Saturday morning
+=======
 >>>>>>> parent of 8aa4d85... Saturday morning
 	return new_matches;
 

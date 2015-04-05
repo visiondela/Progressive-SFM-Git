@@ -71,9 +71,12 @@ vector<cv::Mat> frames;
 
 int frames_reconstructed = 100000000;
 <<<<<<< HEAD
+<<<<<<< HEAD
 Mat frame;
 Size pat ;
 =======
+=======
+>>>>>>> parent of 8aa4d85... Saturday morning
 
 
 >>>>>>> parent of 8aa4d85... Saturday morning
@@ -116,6 +119,7 @@ boost::tuple<Mat_<double>,Mat_<double> > Stream_Calibrate (string stream_code)
 	Size frameSize(static_cast<int>(f_width), static_cast<int>(f_length));
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 	cout<<"Would you like a checkerboard for calibration? Y o N"<<endl;
 	string calib_check;
 	cin>>calib_check;
@@ -135,6 +139,10 @@ boost::tuple<Mat_<double>,Mat_<double> > Stream_Calibrate (string stream_code)
 		imshow("Calibrate Pattern",  pattern); 
 		waitKey(30);
 	}
+=======
+	//Get location of the checkerboard
+	Mat pattern = imread("C:/Users/Matthew/Documents/Visual Studio 2010/Projects/Program 2  - Progressive Structure from Motion/ProgressiveSFM/checkerboard.png"); //Get checkerboard pattern
+>>>>>>> parent of 8aa4d85... Saturday morning
 =======
 	//Get location of the checkerboard
 	Mat pattern = imread("C:/Users/Matthew/Documents/Visual Studio 2010/Projects/Program 2  - Progressive Structure from Motion/ProgressiveSFM/checkerboard.png"); //Get checkerboard pattern
@@ -224,6 +232,7 @@ boost::tuple<Mat_<double>,Mat_<double> > Stream_Calibrate (string stream_code)
 }					
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 void Images_fromfile()
 {
 	
@@ -282,6 +291,13 @@ void Stream (string stream_code)
 	//cv::namedWindow("Captures_left",WINDOW_NORMAL );
 	//cv::namedWindow("Captures_right",WINDOW_NORMAL );
 >>>>>>> parent of 8aa4d85... Saturday morning
+=======
+void Stream (string stream_code)
+{
+	cv::namedWindow("Stream",WINDOW_NORMAL );
+	//cv::namedWindow("Captures_left",WINDOW_NORMAL );
+	//cv::namedWindow("Captures_right",WINDOW_NORMAL );
+>>>>>>> parent of 8aa4d85... Saturday morning
 	VideoCapture cap(stream_code);
 	//cap.set(CV_CAP_PROP_POS_MSEC, 3000);
 
@@ -290,6 +306,7 @@ void Stream (string stream_code)
 
 	if (!cap.isOpened())
 	{
+<<<<<<< HEAD
 <<<<<<< HEAD
 		cout << "The camera is not connected. Connect the camera and then proceed" << endl;
 		void Stream(int stream_code); //Rerun function
@@ -318,6 +335,16 @@ void Stream (string stream_code)
 	//cv::resizeWindow("Captures_left",cap.get(CV_CAP_PROP_FRAME_WIDTH)/4,cap.get(CV_CAP_PROP_FRAME_HEIGHT)/4);
 	//cv::resizeWindow("Captures_right",cap.get(CV_CAP_PROP_FRAME_WIDTH)/4,cap.get(CV_CAP_PROP_FRAME_HEIGHT)/4);
 >>>>>>> parent of 8aa4d85... Saturday morning
+=======
+		cout << "The camera is not connected" << endl;
+		frames_reconstructed = 0;
+		//do a loop back to void Stream after connect the camera
+	}
+
+	cv::resizeWindow("Stream",cap.get(CV_CAP_PROP_FRAME_WIDTH)/4,cap.get(CV_CAP_PROP_FRAME_HEIGHT)/4);
+	//cv::resizeWindow("Captures_left",cap.get(CV_CAP_PROP_FRAME_WIDTH)/4,cap.get(CV_CAP_PROP_FRAME_HEIGHT)/4);
+	//cv::resizeWindow("Captures_right",cap.get(CV_CAP_PROP_FRAME_WIDTH)/4,cap.get(CV_CAP_PROP_FRAME_HEIGHT)/4);
+>>>>>>> parent of 8aa4d85... Saturday morning
 	int frame_no=1;
 	int frames_captured = 0;
 	while(1)
@@ -336,6 +363,7 @@ void Stream (string stream_code)
 		waitKey(30);
 
 		cout<<frame_no<<endl;
+<<<<<<< HEAD
 <<<<<<< HEAD
 		if (frame_no>50 && frame_no%50==0)
 		//if (frame_no>10 )
@@ -368,6 +396,14 @@ void Stream (string stream_code)
 			cout<<"Captured"<<endl;
 			frames_captured++;
 >>>>>>> parent of 8aa4d85... Saturday morning
+=======
+		
+		if (frame_no%20==0)
+		{
+			frames.push_back(frame);
+			cout<<"Captured"<<endl;
+			frames_captured++;
+>>>>>>> parent of 8aa4d85... Saturday morning
 		}
 		
 		frame_no++;	
@@ -384,12 +420,19 @@ void Stream (string stream_code)
 void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 {
 <<<<<<< HEAD
+<<<<<<< HEAD
 	//Sleep the process thread untill the baseline frames have been captured
 	boost::this_thread::sleep(boost::posix_time::milliseconds(10000));
 	
 	//Setup the point cloud for visualiation
 
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud; //Create the point cloud for visualization
+=======
+	boost::this_thread::sleep(boost::posix_time::milliseconds(10000));
+	//Setup the point cloud for visualiation
+	pcl::visualization::CloudViewer viewer("3D Reconstruction");
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud; //create the point cloud
+>>>>>>> parent of 8aa4d85... Saturday morning
 =======
 	boost::this_thread::sleep(boost::posix_time::milliseconds(10000));
 	//Setup the point cloud for visualiation
@@ -456,6 +499,7 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 		if (!frame_left_distorted.empty() && !frame_right_distorted.empty())
 		{
 <<<<<<< HEAD
+<<<<<<< HEAD
 		
 			cout<<"test"<<endl;
 			vector<double> reproj_error; //the reprojection error
@@ -511,6 +555,19 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 			//Undistort frames
 			undistort(frame_right_distorted,frame_right,KMatrix,distcoeff);
 			undistort(frame_left_distorted,frame_left,KMatrix,distcoeff);
+=======
+			//Get frame and display
+			frame_right_distorted = frames.at(a);
+			frame_left_distorted = frames.at(a-1);
+			/*imshow("Captures_left",frame_left_distorted);
+			waitKey(30);
+			imshow("Captures_right",frame_right_distorted);
+			waitKey(30);
+*/
+			//Undistort frames
+			undistort(frame_right_distorted,frame_right,KMatrix,distcoeff);
+			undistort(frame_left_distorted,frame_left,KMatrix,distcoeff);
+>>>>>>> parent of 8aa4d85... Saturday morning
 			/*imshow("Captures_left",frame_left);
 			waitKey(30);
 			imshow("Captures_right",frame_right);
@@ -519,6 +576,9 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				
 				;
 			//Initialise 3D point vector of existing 3D points for PNP
+<<<<<<< HEAD
+>>>>>>> parent of 8aa4d85... Saturday morning
+=======
 >>>>>>> parent of 8aa4d85... Saturday morning
 			vector<Point3f> ppcloud;
 			//Initialise 2D point vector of points in new frame for PNP 
@@ -553,6 +613,7 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				//Get matches
 				matches = baseline.Getmatches_richfeatures(keypoints_left,keypoints_right);
 <<<<<<< HEAD
+<<<<<<< HEAD
 				
 				//Draw and show matches
 				Mat img_matches; //Img_matches
@@ -561,10 +622,13 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				waitKey(30);
 =======
 >>>>>>> parent of 8aa4d85... Saturday morning
+=======
+>>>>>>> parent of 8aa4d85... Saturday morning
 
 				//Refine matches
 				matches = baseline.Prunematches(keypoints_left,keypoints_right,matches);
 				
+<<<<<<< HEAD
 <<<<<<< HEAD
 				//Draw and show pruned matches
 				Mat img_matches2; //Img_matches
@@ -573,6 +637,10 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				waitKey(30);
 
 				//Get the fundamental matrix
+=======
+				//Get the fundamental matrix 
+				
+>>>>>>> parent of 8aa4d85... Saturday morning
 =======
 				//Get the fundamental matrix 
 				
@@ -629,9 +697,14 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 						Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
 						//cout<<norm(xPt_img_ - kp1)<<endl;
 <<<<<<< HEAD
+<<<<<<< HEAD
 						
 					
 						reproj_error.push_back(norm(xPt_img_ - kp1));
+=======
+						reproj_error.push_back(norm(xPt_img_ - kp1));
+				
+>>>>>>> parent of 8aa4d85... Saturday morning
 =======
 						reproj_error.push_back(norm(xPt_img_ - kp1));
 				
@@ -642,6 +715,7 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 						newpoint.index_of_2d_origin.push_back(matches[i].queryIdx);
 						newpoint.index_of_2d_origin.push_back(matches[i].trainIdx);
 						pcloud.push_back(newpoint);
+<<<<<<< HEAD
 <<<<<<< HEAD
 
 						//Convert 3D point type to PCL type
@@ -655,6 +729,19 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 						//Add 3D point to point cloud
 						cloud->push_back(pclp);	
 						
+=======
+						//cout<<"z"<<X(2)<<endl;
+						//Convert 3D point type to PCL type
+						pcl::PointXYZRGB pclp; 
+						pclp.x = X(0);
+						pclp.y = X(1);
+						pclp.z = X(2);
+						pclp.rgb = *reinterpret_cast<float*>(&rgb);
+						
+						//Add 3D point to point cloud
+						cloud->push_back(pclp);	
+			
+>>>>>>> parent of 8aa4d85... Saturday morning
 =======
 						//cout<<"z"<<X(2)<<endl;
 						//Convert 3D point type to PCL type
@@ -685,10 +772,13 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 					//Move onto the next frame
 					baseline_state = "reconstructed";
 <<<<<<< HEAD
+<<<<<<< HEAD
 					cout<<"The baseline has been reconstructed"<<endl;
 					//Move onto the next frame 
 				
 =======
+=======
+>>>>>>> parent of 8aa4d85... Saturday morning
 					a++;
 >>>>>>> parent of 8aa4d85... Saturday morning
 				}
@@ -703,6 +793,7 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				//Get camera matrix and keypoints in new frame ( old right frame)
 				cameramatrix_left = cameramatrix_right;
 				keypoints_left = keypoints_right; //Use previous right frame keypoints 
+<<<<<<< HEAD
 <<<<<<< HEAD
 				keypoints_right = nextview.Getkeypoints_right(); //Get keypoints in new right frame
 				cout<<keypoints_left[2].pt<<" "<<keypoints_right[2].pt<<endl;
@@ -729,6 +820,15 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				waitKey(30);
 				
 				//Refine matches
+=======
+			
+
+				keypoints_right = nextview.Getkeypoints_right(); //Get keypoints in left frame
+			
+
+				//Get matches
+				matches = nextview.Getmatches_richfeatures(keypoints_left,keypoints_right);
+>>>>>>> parent of 8aa4d85... Saturday morning
 =======
 			
 
@@ -815,6 +915,7 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 					Mat_<double> xPt_img =  (KMatrix*Mat(cameramatrix_right))*X; //Get the second image coordinate from the triangulated 3D point
 					Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
 <<<<<<< HEAD
+<<<<<<< HEAD
 	
 					reproj_error.push_back(norm(xPt_img_ - kp1));
 					CloudPoint newpoint;
@@ -823,11 +924,16 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 						
 						
 =======
+=======
+>>>>>>> parent of 8aa4d85... Saturday morning
 					//cout<<norm(xPt_img_ - kp1)<<endl;
 					reproj_error.push_back(norm(xPt_img_ - kp1));
 				
 					//Add 3D point to our global point cloud
 					CloudPoint newpoint;
+<<<<<<< HEAD
+>>>>>>> parent of 8aa4d85... Saturday morning
+=======
 >>>>>>> parent of 8aa4d85... Saturday morning
 					newpoint.pt = Point3d(X(0),X(1),X(2));
 					newpoint.index_of_2d_origin.push_back(matches[i].queryIdx);
@@ -841,15 +947,21 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 					pclp.z = X(2);
 					pclp.rgb = *reinterpret_cast<float*>(&rgb);
 <<<<<<< HEAD
+<<<<<<< HEAD
 					//cout<<"point "<<pclp<<endl;	
 					//Add 3D point to point cloud
 					cloud->push_back(pclp);	
 					
 =======
+=======
+>>>>>>> parent of 8aa4d85... Saturday morning
 						
 					//Add 3D point to point cloud
 					cloud->push_back(pclp);	
 			
+<<<<<<< HEAD
+>>>>>>> parent of 8aa4d85... Saturday morning
+=======
 >>>>>>> parent of 8aa4d85... Saturday morning
 				}
 
@@ -880,6 +992,9 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 		catch(...)
 		{
 			cout<<"fail catch"<<endl;
+<<<<<<< HEAD
+>>>>>>> parent of 8aa4d85... Saturday morning
+=======
 >>>>>>> parent of 8aa4d85... Saturday morning
 		}
 	}
@@ -897,11 +1012,14 @@ int main(int argc, char** argv)
 	Mat_<double> distortion_coeff;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 	cout<<"Enter 1 if you would like to use your video stream or 2 if you would like to use the test set of images"<<endl;
 	int selection;
 	cin>>selection;
 =======
+=======
+>>>>>>> parent of 8aa4d85... Saturday morning
 	//Get the address of the stream
 	cout<<"Enter the stream address: 2 or 0 or http://192.168.2.201:8080/video?x.mjpeg or http://192.168.43.1:8080/video?x.mjpeg or  http://10.117.45.249:8080/video?x.mjpeg "<<endl;
 	string stream_code;
@@ -958,6 +1076,9 @@ int main(int argc, char** argv)
 		cout<<"test"<<endl;
 		KMatrix = (Mat_<double>(3,3) << 1598.137105349493, 0, 930.2103833838157, 0, 1594.705715001694, 540.8798963534, 0, 0, 1);
 		distortion_coeff = (Mat_<double>(1,5)<<0.1166458260081404, 0.2553138309028938, -0.001613174921803301,-0.001156601595796987, -1.812315167189046);
+<<<<<<< HEAD
+>>>>>>> parent of 8aa4d85... Saturday morning
+=======
 >>>>>>> parent of 8aa4d85... Saturday morning
 		
 		}
@@ -1017,6 +1138,9 @@ int main(int argc, char** argv)
 	//Join threads to main so to wait for all to finish
 	/*tgroup.join_all(); 
 */
+<<<<<<< HEAD
+>>>>>>> parent of 8aa4d85... Saturday morning
+=======
 >>>>>>> parent of 8aa4d85... Saturday morning
 	return 0;	
 }
