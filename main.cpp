@@ -65,13 +65,13 @@
 using namespace cv;
 using namespace std;
 
-	
+pcl::visualization::CloudViewer viewer("Progressive SFM");
 
+vector<cv::Mat> frames;
 
-vector<Mat> frames;
 int frames_reconstructed = 100000000;
 Mat frame;
-
+Size pat ;
 
 struct CloudPoint
 {
@@ -119,7 +119,7 @@ boost::tuple<Mat_<double>,Mat_<double> > Stream_Calibrate (int stream_code)
 		}
 
 		cv::namedWindow("Calibrate Pattern",WINDOW_NORMAL);
-		Size pat = pattern.size();
+		pat = pattern.size();
 		cv::resizeWindow("Calibrate Pattern",pat.width/2,pat.height/2);
 		imshow("Calibrate Pattern",  pattern); 
 		waitKey(30);
@@ -213,27 +213,77 @@ boost::tuple<Mat_<double>,Mat_<double> > Stream_Calibrate (int stream_code)
 	return boost::make_tuple(KMatrix ,distortion_coeff);
 }					
 
+void Images_fromfile()
+{
+	
+	string Filename = "C:/Users/Matthew/Documents/Visual Studio 2010/Projects/Program 2  - Progressive Structure from Motion/ProgressiveSFM/Images_fromfile/Image_001.png";
+	
+	Mat frame = cv::imread(Filename.c_str());
+
+	if (!frame.data)
+	{
+		cout << "The first image file could not be opened. Enter correct address and restart" << endl;
+		string path;
+		cin>>path;
+		Images_fromfile();
+	}
+
+	pat = frame.size();
+	pat.width = pat.width/4;
+	pat.height=pat.height/4;
+	cv::namedWindow("Fileviewer",WINDOW_NORMAL );
+	cv::resizeWindow("Fileviewer",pat.width,pat.height);
+
+	//Initialize some variables
+	int frame_no=1;
+
+	while(1)
+	{
+		frame = cv::imread(Filename.c_str());
+		
+
+		if (!frame.data)
+		{
+			break;
+		}
+
+		imshow("Fileviewer",  frame); 
+		waitKey(30);
+		
+		frames.push_back(frame);
+	
+		frame_no++;
+		string frame_Number = boost::lexical_cast<string,int>(frame_no);
+		Filename = "C:/Users/Matthew/Documents/Visual Studio 2010/Projects/Program 2  - Progressive Structure from Motion/ProgressiveSFM/Images_fromfile/Image_00"+frame_Number+".png";
+	}
+	frames_reconstructed = frame_no;
+}
+
+
 void Stream (int stream_code)
 {
-	cout<<"Hit Enter to begin 3D reconstruction"<<endl;
-	waitKey(0);
-
+	frames.resize(1000000);
 	//Create insance of capture class and check to see if camera is connected
 	VideoCapture cap(stream_code);
 
 	if (!cap.isOpened())
 	{
 		cout << "The camera is not connected. Connect the camera and then proceed" << endl;
-		destroyWindow("Stream");//Close window
 		void Stream(int stream_code); //Rerun function
 	}
-	
+	pat.width = cap.get(CV_CAP_PROP_FRAME_WIDTH);
+	pat.height = cap.get(CV_CAP_PROP_FRAME_HEIGHT);
+
 	//Create window to show the stream
 	cv::namedWindow("Stream",WINDOW_NORMAL );
+	cv::resizeWindow("Stream",pat.width,pat.height);
+	
+	//Set up variables to save the frames to file
+	vector<int> compression_params; //vector that stores the compression parameters of the image
+    compression_params.push_back(CV_IMWRITE_JPEG_QUALITY); //specify the compression technique
+    compression_params.push_back(98); //specify the compression quality
 
-	//Resize the window
-	cv::resizeWindow("Stream",cap.get(CV_CAP_PROP_FRAME_WIDTH),cap.get(CV_CAP_PROP_FRAME_HEIGHT));
-
+	
 	//Initialize some variables
 	int frame_no=1;
 	int frames_captured = 0;
@@ -256,14 +306,29 @@ void Stream (int stream_code)
 
 		//Print out the frame_number
 		cout<<frame_no<<endl;
-		
-		if (frame_no%30==0)
+		if (frame_no>50 && frame_no%50==0)
+		//if (frame_no>10 )
 		{
 			//Save frame to vector
-			frames.push_back(frame);
-			frames_captured++;
+			//frames.push_back(frame);
+
+	
 			cout<<"Captured frame number "<<frames_captured<<endl;
 			
+			string name = "C:/Users/Matthew/Documents/Visual Studio 2010/Projects/Program 2  - Progressive Structure from Motion/ProgressiveSFM/Captures/Image_00"+boost::lexical_cast<string,int>(frames_captured)+".jpg";
+			bool bSuccess = imwrite(name, frame, compression_params); //write the image to file
+	
+			if ( !bSuccess )
+
+			{
+
+				 cout << "ERROR : Failed to save the image" << endl;
+
+				 //system("pause"); //wait for a key press
+
+			}
+			frames_captured++;
+
 		}
 		
 		//Increment the frame numbers
@@ -286,21 +351,35 @@ void Stream (int stream_code)
 void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 {
 	//Sleep the process thread untill the baseline frames have been captured
-	boost::this_thread::sleep(boost::posix_time::milliseconds(20000));
+	boost::this_thread::sleep(boost::posix_time::milliseconds(10000));
 	
 	//Setup the point cloud for visualiation
-	pcl::visualization::CloudViewer viewer("Progressive SFM");
+
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud; //Create the point cloud for visualization
 	cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
 	Vec3b rgbv(255,255,255);  //The black RGBV value for the point cloud
 	uint32_t rgb = ((uint32_t)rgbv[2]<<16 | (uint32_t)rgbv[1] << 8 | (uint32_t)rgbv[0]);
+		
+
+	cv::namedWindow("Keypoints",WINDOW_NORMAL );
+	cv::resizeWindow("Keypoints",pat.width,pat.height );
+	cv::moveWindow("Keypoints",0,0);
+	
 	cv::namedWindow("Matches",WINDOW_NORMAL );
+	cv::resizeWindow("Matches",2*pat.width,pat.height);
+	cv::moveWindow("Matches",pat.width,0);
 
 	//Initialise that the state of the baseline reconstruction
 	string baseline_state = "Baseline has not been reconstructed";
 	
-	int a = 1 ;//Initialise the counter for the number of frames captured
+	int theframenumber = 0 ;//Initialise the counter for the number of frames captured
 	
+	//Set up variables to save the frames to file
+	vector<int> compression_params; //vector that stores the compression parameters of the image
+    compression_params.push_back(CV_IMWRITE_JPEG_QUALITY); //specify the compression technique
+    compression_params.push_back(98); //specify the compression quality
+
+
 	//Setup our global point cloud for processing
 	vector <CloudPoint> pcloud; //Our global point cloud
 	vector<int> pcloud_status(1000000,0); //too see if points been used before
@@ -308,33 +387,69 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 	//Initialise our key variables
 	vector<KeyPoint> keypoints_left; //Keypoints in left_frame
 	vector<KeyPoint> keypoints_right;//Keypoints in right frame
+	
 	vector<DMatch> matches; //The matches
+	
 	Matx34d cameramatrix_left(1,0,0,0,0,1,0,0,0,0,1,0); //Camera matrix in left frame
 	Matx34d cameramatrix_right; //camera matrix in right frame
 
+	string Filename_image_left = "C:/Users/Matthew/Documents/Visual Studio 2010/Projects/Program 2  - Progressive Structure from Motion/ProgressiveSFM/Captures/Image_000.jpg";
+	string Filename_image_right = "C:/Users/Matthew/Documents/Visual Studio 2010/Projects/Program 2  - Progressive Structure from Motion/ProgressiveSFM/Captures/Image_001.jpg";
 	//Start processing loop
-	while (a<frames_reconstructed)
+	Mat frame_left_distorted ;
+	Mat frame_right_distorted;
+	while (theframenumber<frames_reconstructed)
 	{
-		//Create array to store the left and right frame in
-		Mat frame_left_distorted;
-		Mat frame_right_distorted;
+	
 		
-		//Create array to store the left and right frame after they have been undistorted
-		Mat frame_left;
-		Mat frame_right;
-
-		vector<double> reproj_error; //the reprojection error
+		//Read images
+		frame_left_distorted = cv::imread(Filename_image_left, CV_LOAD_IMAGE_UNCHANGED);
+		frame_right_distorted = cv::imread(Filename_image_right, CV_LOAD_IMAGE_UNCHANGED);
 		
-		try
+		if (!frame_left_distorted.empty() && !frame_right_distorted.empty())
 		{
-			//Get frame and undistort
-			frame_right_distorted = frames.at(a);
-			frame_left_distorted = frames.at(a-1);
+		
+			cout<<"test"<<endl;
+			vector<double> reproj_error; //the reprojection error
+
+			//Create array to store the left and right frame after they have been undistorted
+			Mat frame_left;
+			Mat frame_right;
+
+		
+
+			
 
 			undistort(frame_right_distorted,frame_right,KMatrix,distcoeff);
 			undistort(frame_left_distorted,frame_left,KMatrix,distcoeff);
 
+			string name_left;
+			string name_right;
+			name_left = "C:/Users/Matthew/Documents/Visual Studio 2010/Projects/Program 2  - Progressive Structure from Motion/ProgressiveSFM/Images/frame_left"+boost::lexical_cast<string,int>(theframenumber)+".jpg";
+			
+			bool bSuccess = imwrite(name_left, frame_left, compression_params); //write the image to file
 	
+			if ( !bSuccess )
+
+			{
+
+				 cout << "ERROR : Failed to save the image" << endl;
+
+				 //system("pause"); //wait for a key press
+
+			}
+			name_right = "C:/Users/Matthew/Documents/Visual Studio 2010/Projects/Program 2  - Progressive Structure from Motion/ProgressiveSFM/Images/frame_right"+boost::lexical_cast<string,int>(theframenumber+1)+".jpg";
+			bool bSuccess2 = imwrite(name_right, frame_right, compression_params); //write the image to file
+			
+			if ( !bSuccess2 )
+
+			{
+
+				 cout << "ERROR : Failed to save the image" << endl;
+
+				 //system("pause"); //wait for a key press
+
+			}
 			//Initialise 3D point vector of the existing 3D points for PNP
 			vector<Point3f> ppcloud;
 
@@ -351,13 +466,36 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				keypoints_left = baseline.Getkeypoints_left();
 				keypoints_right = baseline.Getkeypoints_right();
 				
+				//Draw and show keypoints
+				Mat keypoints_left_show; //Img_matches
+				drawKeypoints(frame_left,keypoints_left,keypoints_left_show);
+				imshow("Keypoints", keypoints_left_show);
+				waitKey(30);
+				
+				Mat keypoints_right_show; //Img_matches
+				drawKeypoints(frame_right,keypoints_right,keypoints_right_show);
+				imshow("Keypoints", keypoints_right_show);
+				waitKey(30);
+				
+
 				//Get matches
 				matches = baseline.Getmatches_richfeatures(keypoints_left,keypoints_right);
 				
-			
+				//Draw and show matches
+				Mat img_matches; //Img_matches
+				drawMatches(frame_left,keypoints_left,frame_right,keypoints_right,matches,img_matches);
+				imshow("Matches", img_matches);
+				waitKey(30);
+
 				//Refine matches
 				matches = baseline.Prunematches(keypoints_left,keypoints_right,matches);
-			
+				
+				//Draw and show pruned matches
+				Mat img_matches2; //Img_matches
+				drawMatches(frame_left,keypoints_left,frame_right,keypoints_right,matches,img_matches2);
+				imshow("Matches", img_matches2);
+				waitKey(30);
+
 				//Get the fundamental matrix
 				Mat fundamentalmatrix = baseline.Getfundamentalmatrix(keypoints_left,keypoints_right,matches);
 				
@@ -370,7 +508,7 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				if (cameramatrix_right == Matx34d(1,0,0,0,0,1,0,0,0,0,1,0))
 				{
 					cout<<"The baseline frames are not good - the next pair of frames will be used as baseline frames"<<endl;
-					a++;
+				
 				}
 				
 				else if (cameramatrix_right != Matx34d(1,0,0,0,0,1,0,0,0,0,1,0))
@@ -405,28 +543,27 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 						Mat_<double> xPt_img =  (KMatrix*Mat(cameramatrix_right))*X; //Get the second image coordinate from the triangulated 3D point
 						Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
 						//cout<<norm(xPt_img_ - kp1)<<endl;
-						CloudPoint newpoint;
-						if (norm(xPt_img_ - kp1)<10)
-						{
-							reproj_error.push_back(norm(xPt_img_ - kp1));
-							//Add 3D point to our global point cloud
-							
-							newpoint.pt = Point3d(X(0),X(1),X(2));
-							newpoint.index_of_2d_origin.push_back(matches[i].queryIdx);
-							newpoint.index_of_2d_origin.push_back(matches[i].trainIdx);
-							pcloud.push_back(newpoint);
-
-							//Convert 3D point type to PCL type
-							pcl::PointXYZRGB pclp; 
 						
-							pclp.x = X(0);
-							pclp.y = X(1);
-							pclp.z = X(2);
-							pclp.rgb = *reinterpret_cast<float*>(&rgb);
+					
+						reproj_error.push_back(norm(xPt_img_ - kp1));
+						//Add 3D point to our global point cloud
+						CloudPoint newpoint;
+						newpoint.pt = Point3d(X(0),X(1),X(2));
+						newpoint.index_of_2d_origin.push_back(matches[i].queryIdx);
+						newpoint.index_of_2d_origin.push_back(matches[i].trainIdx);
+						pcloud.push_back(newpoint);
 
-							//Add 3D point to point cloud
-							cloud->push_back(pclp);	
-						}
+						//Convert 3D point type to PCL type
+						pcl::PointXYZRGB pclp; 
+						
+						pclp.x = X(0);
+						pclp.y = X(1);
+						pclp.z = X(2);
+						pclp.rgb = *reinterpret_cast<float*>(&rgb);
+
+						//Add 3D point to point cloud
+						cloud->push_back(pclp);	
+						
 					}
 
 					//Calculate the mean reprojection error
@@ -440,10 +577,11 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				
 					//Basline has now been reconsructed
 					baseline_state = "reconstructed";
-
+					cout<<"The baseline has been reconstructed"<<endl;
 					//Move onto the next frame 
-					a++;
+				
 				}
+				
 
 			}
 			else if (baseline_state == "reconstructed")
@@ -454,14 +592,38 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				//Get camera matrix and keypoints in new frame ( old right frame)
 				cameramatrix_left = cameramatrix_right;
 				keypoints_left = keypoints_right; //Use previous right frame keypoints 
-
 				keypoints_right = nextview.Getkeypoints_right(); //Get keypoints in new right frame
+				cout<<keypoints_left[2].pt<<" "<<keypoints_right[2].pt<<endl;
+				//Draw and show keypoints
+				Mat keypoints_left_show; //Img_matches
+				drawKeypoints(frame_left,keypoints_left,keypoints_left_show);
+				imshow("Keypoints", keypoints_left_show);
+				waitKey(30);
+				
+				Mat keypoints_right_show; //Img_matches
+				drawKeypoints(frame_right,keypoints_right,keypoints_right_show);
+				imshow("Keypoints", keypoints_right_show);
+				waitKey(30);
+				
+
 
 				//Get matches
 				matches = nextview.Getmatches_richfeatures(keypoints_left,keypoints_right);
-
+				
+				//Draw and show matches
+				Mat img_matches; //Img_matches
+				drawMatches(frame_left,keypoints_left,frame_right,keypoints_right,matches,img_matches);
+				imshow("Matches", img_matches);
+				waitKey(30);
+				
 				//Refine matches
 				matches = nextview.Prunematches(keypoints_left,keypoints_right,matches);
+				
+				//Draw and show pruned matches
+				Mat img_matches2; //Img_matches
+				drawMatches(frame_left,keypoints_left,frame_right,keypoints_right,matches,img_matches2);
+				imshow("Matches", img_matches2);
+				waitKey(30);
 
 				//Populate imgpoints and ppcloud in order to do PNP
 				for (int c = 0;c<matches.size();c++)
@@ -530,28 +692,27 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 					Mat_<double> xPt_img =  (KMatrix*Mat(cameramatrix_right))*X; //Get the second image coordinate from the triangulated 3D point
 					Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
 	
-					
+					reproj_error.push_back(norm(xPt_img_ - kp1));
 					CloudPoint newpoint;
-					if (norm(xPt_img_ - kp1)<10)
-					{
-						//Add 3D point to our global point cloud
-						cout<<"fine"<<endl;
-						reproj_error.push_back(norm(xPt_img_ - kp1));
-						newpoint.pt = Point3d(X(0),X(1),X(2));
-						newpoint.index_of_2d_origin.push_back(matches[i].queryIdx);
-						newpoint.index_of_2d_origin.push_back(matches[i].trainIdx);
-						pcloud.push_back(newpoint);
+					
+					//Add 3D point to our global point cloud
+						
+						
+					newpoint.pt = Point3d(X(0),X(1),X(2));
+					newpoint.index_of_2d_origin.push_back(matches[i].queryIdx);
+					newpoint.index_of_2d_origin.push_back(matches[i].trainIdx);
+					pcloud.push_back(newpoint);
 
-						//Convert 3D point type to PCL type
-						pcl::PointXYZRGB pclp; 
-						pclp.x = X(0);
-						pclp.y = X(1);
-						pclp.z = X(2);
-						pclp.rgb = *reinterpret_cast<float*>(&rgb);
-						//cout<<"point "<<pclp<<endl;	
-						//Add 3D point to point cloud
-						cloud->push_back(pclp);	
-					}
+					//Convert 3D point type to PCL type
+					pcl::PointXYZRGB pclp; 
+					pclp.x = X(0);
+					pclp.y = X(1);
+					pclp.z = X(2);
+					pclp.rgb = *reinterpret_cast<float*>(&rgb);
+					//cout<<"point "<<pclp<<endl;	
+					//Add 3D point to point cloud
+					cloud->push_back(pclp);	
+					
 				}
 
 				//Calculate the mean reprojection error
@@ -563,14 +724,12 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff)
 				cloud->height = 1; //a list of points, one row of data
 				viewer.showCloud(cloud);
 		
-				a++;
+				
 			}
-			
-			
-		}
-		catch(...)
-		{
-			
+				
+		theframenumber++;
+		Filename_image_left = "C:/Users/Matthew/Documents/Visual Studio 2010/Projects/Program 2  - Progressive Structure from Motion/ProgressiveSFM/Captures/Image_00"+boost::lexical_cast<string,int>(theframenumber)+".jpg";
+		Filename_image_right = "C:/Users/Matthew/Documents/Visual Studio 2010/Projects/Program 2  - Progressive Structure from Motion/ProgressiveSFM/Captures/Image_00"+boost::lexical_cast<string,int>(theframenumber+1)+".jpg";
 		}
 	}
 
@@ -586,62 +745,77 @@ int main(int argc, char** argv)
 	Mat_<double> KMatrix; 
 	Mat_<double> distortion_coeff;
 
-	//Get the address of the stream
-	cout<<"Enter the stream address: "<<endl;
-	int stream_code;
-	cin>>stream_code;
 
-	//Find out whether the camera needs to be calibrared.
-	cout<<"Enter: '1' to enter a calibration matrix '2' to random generate a calibration matrix or '3' to use last good calibration matrix or '4' to calibrate the camera"<<endl;
-	int calib_yn;
-	cin>>calib_yn;
+	cout<<"Enter 1 if you would like to use your video stream or 2 if you would like to use the test set of images"<<endl;
+	int selection;
+	cin>>selection;
 	
-	if (calib_yn == 1)
+	if (selection ==1)
 	{
-		//Get the calibration matrix from the user
-		double a,b,c,d,e,f,g,h,i;
-		cout<<"Enter the calibration matrix: "<<endl;
-		cin>>a>>b>>c>>d>>e>>f>>g>>h>>i;
-		KMatrix = (Mat_<double>(3,3) << a,b,c,d,e,f,g,h,i);
+		//Get the address of the stream
+		cout<<"Enter the stream address: "<<endl;
+		int stream_code;
+		cin>>stream_code;
+
+		//Find out whether the camera needs to be calibrared.
+		cout<<"Enter: '1' to enter a calibration matrix '2' to random generate a calibration matrix or '3' to use last good calibration matrix or '4' to calibrate the camera"<<endl;
+		int calib_yn;
+		cin>>calib_yn;
+	
+		if (calib_yn == 1)
+		{
+			//Get the calibration matrix from the user
+			double a,b,c,d,e,f,g,h,i;
+			cout<<"Enter the calibration matrix: "<<endl;
+			cin>>a>>b>>c>>d>>e>>f>>g>>h>>i;
+			KMatrix = (Mat_<double>(3,3) << a,b,c,d,e,f,g,h,i);
+		}
+
+		else if (calib_yn == 2)
+		{
+			//Randomly generate the calibration matrix
+			cout<<"Please enter the size of the stream , width and then length:640 x 480 "<<endl;
+			double frame_width,frame_length;
+			cin>>frame_width>>frame_length;
+			double max_w_h = MAX(frame_length,frame_width);
+			KMatrix = (cv::Mat_<double>(3,3) <<	max_w_h ,0	, frame_width/2.0,0,			max_w_h,	frame_length/2.0,0,			0,			1);
+			distortion_coeff = cv::Mat_<double>::zeros(1,4);
+		}
+
+		else if (calib_yn == 3)
+		{
+			KMatrix = (Mat_<double>(3,3) << 525.9316918910984, 0, 316.0624144827294,0, 526.0756660916903, 234.6094749098716,0, 0, 1);
+			distortion_coeff = (Mat_<double>(1,5)<<0.08169256472185063, -0.2102551852460387, 0.006422891358362706, -0.001964568988707569, 0.2044565056581352);
+		
+		}
+
+		else if (calib_yn == 4)
+		{
+			cout<<"Enter the stream address: "<<endl;
+			int stream_code;
+			cin>>stream_code;
+			boost::tie(KMatrix,distortion_coeff)=Stream_Calibrate(stream_code);
+			cout<<"KMatrix "<<KMatrix<<endl;
+			cout<<"distortion_coeff "<<distortion_coeff<<endl;
+		}
+
+		boost::thread t1(&Stream,stream_code);
+		boost::thread t2(&Stream_Process,KMatrix,distortion_coeff);
+		t1.join();
+		t2.join();
 	}
 
-	else if (calib_yn == 2)
+	else if ( selection = 2)
 	{
-		//Randomly generate the calibration matrix
-		cout<<"Please enter the size of the stream , width and then length:640 x 480 "<<endl;
-		double frame_width,frame_length;
-		cin>>frame_width>>frame_length;
-		double max_w_h = MAX(frame_length,frame_width);
-		KMatrix = (cv::Mat_<double>(3,3) <<	max_w_h ,0	, frame_width/2.0,0,			max_w_h,	frame_length/2.0,0,			0,			1);
+		KMatrix = (cv::Mat_<double>(3,3) <<	3072 ,0	, 3072/2.0,0,			3072,	2048/2.0,0,			0,			1);
 		distortion_coeff = cv::Mat_<double>::zeros(1,4);
+		boost::thread t1(&Images_fromfile);
+		boost::thread t2(&Stream_Process,KMatrix,distortion_coeff);
+		t1.join();
+		t2.join();
 	}
 
-	else if (calib_yn == 3)
-	{
-		cout<<"test"<<endl;
-		KMatrix = (Mat_<double>(3,3) << 525.9316918910984, 0, 316.0624144827294,0, 526.0756660916903, 234.6094749098716,0, 0, 1);
-		distortion_coeff = (Mat_<double>(1,5)<<0.08169256472185063, -0.2102551852460387, 0.006422891358362706, -0.001964568988707569, 0.2044565056581352);
-		
-	}
-
-	else if (calib_yn == 4)
-	{
-		
-		boost::tie(KMatrix,distortion_coeff)=Stream_Calibrate(stream_code);
-		cout<<"KMatrix "<<KMatrix<<endl;
-		cout<<"distortion_coeff "<<distortion_coeff<<endl;
-	}
-
-
-
-	boost::thread t1(&Stream,stream_code);
-	boost::thread t2(&Stream_Process,KMatrix,distortion_coeff);
 	
-
-	t1.join();
-	t2.join();
-
-
 
 	return 0;	
 }

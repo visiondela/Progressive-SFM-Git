@@ -45,14 +45,7 @@ vector<DMatch> Reconstruction::Getmatches_richfeatures (vector<KeyPoint> keypoin
 	BFMatcher matcher;
 	matcher.match(descriptors1,descriptors2,matches);
 	  
-	//Draw the matches
-	Mat img_matches; //Img_matches
-	drawMatches(img1,keypoints1,img2,keypoints2,matches,img_matches);
-
-	//Show matches
-	imshow("Matches", img_matches);
-	waitKey(30);
-	destroyWindow("Matches");
+	
 
 	return matches;
 }
@@ -126,14 +119,7 @@ vector<DMatch> Reconstruction::Prunematches(vector<KeyPoint> detected_keypoints1
 	//cout << matches.size() << " matches before, " << new_matches.size() << " new matches after Fundamental Matrix\n";
 	//keep only those points that survived the fundamental matrix
 	//matches = new_matches;
-	//Draw the matches
-	Mat img_matches; //Img_matches
-	drawMatches(img1,detected_keypoints1,img2,detected_keypoints2,new_matches,img_matches);
 
-	//Show matches
-	imshow("Matches", img_matches);
-	waitKey(30);
-	destroyWindow("Matches");
 	return new_matches;
 
 }
