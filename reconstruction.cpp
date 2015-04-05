@@ -56,6 +56,9 @@ vector<DMatch> Reconstruction::Getmatches_richfeatures (vector<KeyPoint> keypoin
 	imshow("Matches", img_matches);
 	waitKey(30);
 <<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> parent of 8aa4d85... Saturday morning
+=======
 >>>>>>> parent of 8aa4d85... Saturday morning
 =======
 >>>>>>> parent of 8aa4d85... Saturday morning
@@ -134,8 +137,11 @@ vector<DMatch> Reconstruction::Prunematches(vector<KeyPoint> detected_keypoints1
 	//matches = new_matches;
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
+=======
+>>>>>>> parent of 8aa4d85... Saturday morning
 =======
 >>>>>>> parent of 8aa4d85... Saturday morning
 	
@@ -147,6 +153,9 @@ vector<DMatch> Reconstruction::Prunematches(vector<KeyPoint> detected_keypoints1
 	imshow("Matches", img_matches);
 	waitKey(30);
 <<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> parent of 8aa4d85... Saturday morning
+=======
 >>>>>>> parent of 8aa4d85... Saturday morning
 =======
 >>>>>>> parent of 8aa4d85... Saturday morning
