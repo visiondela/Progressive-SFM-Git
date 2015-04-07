@@ -45,27 +45,7 @@ vector<DMatch> Reconstruction::Getmatches_richfeatures (vector<KeyPoint> keypoin
 	BFMatcher matcher;
 	matcher.match(descriptors1,descriptors2,matches);
 	  
-<<<<<<< HEAD
 	
-=======
-<<<<<<< HEAD
-	
-=======
-	//Draw the matches
-	Mat img_matches; //Img_matches
-	drawMatches(img1,keypoints1,img2,keypoints2,matches,img_matches);
-
-	//Show matches
-	imshow("Matches", img_matches);
-	waitKey(30);
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> parent of 8aa4d85... Saturday morning
-=======
->>>>>>> parent of 8aa4d85... Saturday morning
-=======
->>>>>>> parent of 8aa4d85... Saturday morning
->>>>>>> origin/Master
 
 	return matches;
 }
@@ -139,34 +119,7 @@ vector<DMatch> Reconstruction::Prunematches(vector<KeyPoint> detected_keypoints1
 	//cout << matches.size() << " matches before, " << new_matches.size() << " new matches after Fundamental Matrix\n";
 	//keep only those points that survived the fundamental matrix
 	//matches = new_matches;
-<<<<<<< HEAD
 
-=======
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-=======
-=======
->>>>>>> parent of 8aa4d85... Saturday morning
-=======
->>>>>>> parent of 8aa4d85... Saturday morning
-	
-	//Draw the matches
-	Mat img_matches; //Img_matches
-	drawMatches(img1,detected_keypoints1,img2,detected_keypoints2,new_matches,img_matches);
-
-	//Show matches
-	imshow("Matches", img_matches);
-	waitKey(30);
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> parent of 8aa4d85... Saturday morning
-=======
->>>>>>> parent of 8aa4d85... Saturday morning
-=======
->>>>>>> parent of 8aa4d85... Saturday morning
->>>>>>> origin/Master
 	return new_matches;
 
 }
@@ -241,7 +194,7 @@ Matx34d Reconstruction::Getcameramatrix_right(Mat E, Mat KMatrix,vector<KeyPoint
 	for (int a = 0;a<4;a++)
 	{ 
 		count = 0;
-		cout<<"a/4  "<<a<<endl;
+		//cout<<"a/4  "<<a<<endl;
 		R = cameramatrices[a][0];
 		t = cameramatrices[a][1]; 
 			
@@ -286,7 +239,7 @@ Matx34d Reconstruction::Getcameramatrix_right(Mat E, Mat KMatrix,vector<KeyPoint
 	if (count<0.25*matches.size())
 	{
 		P = Matx34d(R(0,0),R(0,1),R(0,2),t(0),R(1,0),R(1,1),R(1,2),t(1),R(2,0),R(2,1),R(2,2),t(2));
-		cout<<"Correct baseline camera matrix found. The percentage of points reconstructed in front of the camera is"<<100*count/matches.size()<<endl;
+		cout<<"Correct baseline camera matrix found. The percentage of points reconstructed behind the camera is"<<100*count/matches.size()<<endl;
 		return P;
 	}
 
