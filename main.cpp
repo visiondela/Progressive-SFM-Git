@@ -71,12 +71,11 @@ using namespace std;
 	
 pcl::visualization::CloudViewer viewer("Progressive SFM");
 
-
 int frames_reconstructed = 100000000;
 
 
-Size pat ;
-
+Size feed;
+Size display;
 
 struct CloudPoint
 {
@@ -93,13 +92,15 @@ boost::tuple<Mat_<double>,Mat_<double> > Stream_Calibrate (int stream_code)
 	Mat frame;
 
 	VideoCapture cap(stream_code);
+	cap.set(CV_CAP_PROP_FRAME_WIDTH,feed.width);
+	cap.set(CV_CAP_PROP_FRAME_HEIGHT,feed.height);
 
 	if (!cap.isOpened())
 	{
 		cout << "The camera is not connected. Connect the camera and then proceed" << endl;
 		Stream_Calibrate(stream_code); //Rerun function
 	}
-	
+
 	//Define variables for calibration
 	
 	vector<vector<Point2f>> imagepoints; //vector for image points in all images - 54 image points per image
@@ -124,16 +125,16 @@ boost::tuple<Mat_<double>,Mat_<double> > Stream_Calibrate (int stream_code)
 		}
 
 		cv::namedWindow("Calibrate Pattern",WINDOW_NORMAL);
-		pat = pattern.size();
-		cv::resizeWindow("Calibrate Pattern",pat.width/2,pat.height/2);
+		Size checker = pattern.size();
+		cv::resizeWindow("Calibrate Pattern",checker.width/3,checker.height/3);
 		imshow("Calibrate Pattern",  pattern); 
 		waitKey(30);
 	}
-	
-	double f_width = cap.get(CV_CAP_PROP_FRAME_WIDTH);
-	double f_length = cap.get(CV_CAP_PROP_FRAME_HEIGHT);
-	cv::namedWindow("Stream_Calibrate");
-	cv::resizeWindow("Stream_Calibrate",f_width/2,f_length/2);
+
+
+	cv::namedWindow("Stream_Calibrate",WINDOW_NORMAL);
+
+	cv::resizeWindow("Stream_Calibrate",display.width,display.height);
 
 	//Populate object points
 	for(int y=0; y<6; ++y) 
@@ -167,7 +168,7 @@ boost::tuple<Mat_<double>,Mat_<double> > Stream_Calibrate (int stream_code)
 		Mat frameGray; //Grey frame
 		cout<<frame_no<<endl;
 		//If its the 100th frame capture the frame
-		if (frame_no%10==0)
+		if (frame_no%50==0)
 		{		
 			vector<Point2f> corners; //vector for the 54 corner points 
 
@@ -211,10 +212,11 @@ boost::tuple<Mat_<double>,Mat_<double> > Stream_Calibrate (int stream_code)
 	}
 
 	//Start calibration
-	Calibration a(imagepoints,arrayObjectPoints,f_width,f_length) ;
+	Calibration a(imagepoints,arrayObjectPoints,feed.width,feed.height) ;
 	Mat_<double> KMatrix = a.get_kmatrix(); //calibration matrix depends on the resolution of images- ie focal length, the radial distortion parameters are independent of the resolution
 	Mat_<double> distortion_coeff = a.get_disortioncoefficients();
 	destroyWindow("Stream_Calibrate");
+	destroyWindow("Calibrate Pattern");
 	return boost::make_tuple(KMatrix ,distortion_coeff);
 }					
 
@@ -233,11 +235,10 @@ void Images_fromfile(tbb::concurrent_vector<cv::Mat> &frames)
 		//Images_fromfile(frames);
 	}
 
-	pat = frame.size();
-	pat.width = pat.width/4;
-	pat.height=pat.height/4;
+	Size fileimage = frame.size();
+
 	cv::namedWindow("Fileviewer",WINDOW_NORMAL );
-	cv::resizeWindow("Fileviewer",pat.width,pat.height);
+	cv::resizeWindow("Fileviewer",fileimage.width,fileimage.height);
 
 	//Initialize some variables
 	int frame_no=1;
@@ -268,23 +269,27 @@ void Stream (int stream_code,tbb::concurrent_vector<cv::Mat> &frames)
 {
 	//Create insance of capture class and check to see if camera is connected
 	VideoCapture cap(stream_code);
+	cap.set(CV_CAP_PROP_FRAME_WIDTH,feed.width);
+	cap.set(CV_CAP_PROP_FRAME_HEIGHT,feed.height);
 
 	if (!cap.isOpened())
 	{
 		cout << "The camera is not connected. Connect the camera and then proceed" << endl;
 		void Stream(int stream_code); //Rerun function
 	}
-	pat.width = cap.get(CV_CAP_PROP_FRAME_WIDTH);
-	pat.height = cap.get(CV_CAP_PROP_FRAME_HEIGHT);
 
-	//Create window to show the stream
-	cv::namedWindow("Stream",WINDOW_NORMAL );
-	cv::resizeWindow("Stream",pat.width,pat.height);
+	
 	
 	//Set up variables to save the frames to file
 	vector<int> compression_params; //vector that stores the compression parameters of the image
     compression_params.push_back(CV_IMWRITE_JPEG_QUALITY); //specify the compression technique
     compression_params.push_back(98); //specify the compression quality
+
+
+
+	//Create window to show the stream
+	cv::namedWindow("Stream",WINDOW_NORMAL );
+	cv::resizeWindow("Stream",display.width,display.height);
 
 	
 	//Initialize some variables
@@ -310,7 +315,7 @@ void Stream (int stream_code,tbb::concurrent_vector<cv::Mat> &frames)
 
 		//Print out the frame_number
 		cout<<frame_no<<endl;
-		if (frame_no%20==0)
+		if (frame_no>100 &frame_no%10==0)
 		//if (frame_no>10 )
 		{
 			//Save frame to vector
@@ -352,29 +357,31 @@ void Stream (int stream_code,tbb::concurrent_vector<cv::Mat> &frames)
 
 }
 
-void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff,tbb::concurrent_vector<cv::Mat> &frames)
+void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff,tbb::concurrent_vector<cv::Mat> &frames,String point_matching)
 {
 	//Sleep the process thread untill the baseline frames have been captured
 	boost::this_thread::sleep(boost::posix_time::milliseconds(10000));
 	Mat frame;
+	
 	//Setup the point cloud for visualiation
 
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud; //Create the point cloud for visualization
 	cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
 	Vec3b rgbv(255,255,255);  //The black RGBV value for the point cloud
 	uint32_t rgb = ((uint32_t)rgbv[2]<<16 | (uint32_t)rgbv[1] << 8 | (uint32_t)rgbv[0]);
-		
+
 
 	cv::namedWindow("Keypoints",WINDOW_NORMAL );
-	cv::resizeWindow("Keypoints",pat.width,pat.height );
+	cv::resizeWindow("Keypoints",display.width,display.height);
 	cv::moveWindow("Keypoints",0,0);
 	
 	cv::namedWindow("Matches",WINDOW_NORMAL );
-	cv::resizeWindow("Matches",2*pat.width,pat.height);
-	cv::moveWindow("Matches",pat.width,0);
+	cv::resizeWindow("Matches",2*display.width,display.height);
+	cv::moveWindow("Matches",display.width,0);
 
 	//Initialise that the state of the baseline reconstruction
 	string baseline_state = "Baseline has not been reconstructed";
+	
 	
 	int a = 1 ;//Initialise the counter for the number of frames captured
 	
@@ -401,19 +408,15 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff,tbb::concurrent_
 	while (a<frames_reconstructed)
 	{
 
-		
 		vector<double> reproj_error; //the reprojection error
 		
 		try
 		{
 			//Get frame and undistort
-			
-			Mat frame_left_distorted= frames.at(a-1);
 
+			Mat frame_left_distorted= frames.at(a-1);
 			Mat frame_right_distorted= frames.at(a);
 		
-	
-			//Create array to store the left and right frame after they have been undistorted
 			Mat frame_left;
 			Mat frame_right;
 
@@ -427,46 +430,49 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff,tbb::concurrent_
 			//Initialise 2D point vector of points in new frame for PNP 
 			vector<Point2f> imgpoints;
 
-			//Reconstruct the baseline
-			if (baseline_state != "reconstructed")
-			{
-				//Call the constructor
-				Reconstruction baseline(frame_left,frame_right); 
-		
-				//Get keypoints
-				keypoints_left = baseline.Getkeypoints_left();
-				Mat keypoints_left_image;
-				drawKeypoints(frame_left,keypoints_left,keypoints_left_image);
-				imshow("Keypoints",keypoints_left_image);
-				waitKey(30);
+			//Call the constructor
+			Reconstruction view(frame_left,frame_right); 
 
-				Mat keypoints_right_image;
-				keypoints_right = baseline.Getkeypoints_right();
-				drawKeypoints(frame_right,keypoints_right,keypoints_right_image);
-				imshow("Keypoints",keypoints_right_image);
-				waitKey(30);
+			//Detect keypoints and match
+
+			if (point_matching == "Optical flow")
+			{
+				//Get keypoints
+				keypoints_left = (baseline_state == "reconstructed") ? keypoints_right: view.Getkeypoints_left("FastFeatureDetector");
+				
+				keypoints_right = view.Getkeypoints_right("FastFeatureDetector");
 
 				//Get matches
-				matches = baseline.Getmatches_richfeatures(keypoints_left,keypoints_right);
-				Mat matches_image;
-				/*drawMatches(frame_left,keypoints_left,frame_right,keypoints_right,matches,matches_image);
-				imshow("Matches",matches_image);
-				waitKey(30);*/
-
-				//Refine matches
-				matches = baseline.Prunematches(keypoints_left,keypoints_right,matches);
-				drawMatches(frame_left,keypoints_left,frame_right,keypoints_right,matches,matches_image);
-				imshow("Matches",matches_image);
-				waitKey(30);
-				//Get the fundamental matrix
-				Mat fundamentalmatrix = baseline.Getfundamentalmatrix(keypoints_left,keypoints_right,matches);
-				
-				//Get the essential matrix
-				Mat essentialmatrix = baseline.Getessentialmatrix(KMatrix,fundamentalmatrix);
+				matches =view.Getmatches_opticalflow(keypoints_left,keypoints_right);
+		
+			}
 			
-				//Get the camera matrix from essential matrix - there are four possible options 
-				cameramatrix_right = baseline.Getcameramatrix_right(essentialmatrix, KMatrix,keypoints_left,keypoints_right,matches);
+			else if (point_matching == "Rich features")
+			{
+
+				//Get keypoints
+				keypoints_left = (baseline_state == "reconstructed") ? keypoints_right: view.Getkeypoints_left("SurfFeatureDetector");
 				
+				keypoints_right = view.Getkeypoints_right("SurfFeatureDetector");
+				
+				//Get matches
+				matches =view.Getmatches_richfeatures(keypoints_left,keypoints_right);
+					
+				//Refine matches
+				matches = view.Prunematches(keypoints_left,keypoints_right,matches);
+			}
+
+			//Get the fundamental matrix
+			Mat fundamentalmatrix = view.Getfundamentalmatrix(keypoints_left,keypoints_right,matches);
+				
+			//Get the essential matrix
+			Mat essentialmatrix = view.Getessentialmatrix(KMatrix,fundamentalmatrix);
+			
+			if (baseline_state != "reconstructed")
+			{
+				//Get the camera matrix from essential matrix - there are four possible options 
+				cameramatrix_right = view.Getcameramatrix_right(essentialmatrix, KMatrix,keypoints_left,keypoints_right,matches);
+
 				if (cameramatrix_right == Matx34d(1,0,0,0,0,1,0,0,0,0,1,0))
 				{
 					cout<<"The baseline frames are not good - the next pair of frames will be used as baseline frames"<<endl;
@@ -475,117 +481,21 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff,tbb::concurrent_
 				
 				else if (cameramatrix_right != Matx34d(1,0,0,0,0,1,0,0,0,0,1,0))
 				{
-				
-					//Go through each point
-					for (unsigned int i=0;i<matches.size() ;i++)
-					{	
-
-						//Homogeneousize keypoint
-						Point2f kp = keypoints_left[matches[i].queryIdx].pt;
-						Point3d u(kp.x,kp.y,1.0);
-					
-						Point2f kp1 = keypoints_right[matches[i].trainIdx].pt;
-						Point3d u1(kp1.x,kp1.y,1.0);
-
-						//Normalize homogenous keypoint
-						Mat_<double> um = KMatrix.inv()*Mat_<double>(u);
-						u.x = um(0);
-						u.y = um(1);
-						u.z = um(2);
-
-						Mat_<double> um1 = KMatrix.inv()*Mat_<double>(u1);
-						u1.x = um1(0);
-						u1.y = um1(1);
-						u1.z = um1(2);
-
-						//Triangulate keypoint
-						Mat_<double> X = baseline.Triangulatepoint_iterativeleastsquares(u,u1,cameramatrix_left,cameramatrix_right);
-					
-						//Calculate the reprojection error
-						Mat_<double> xPt_img =  (KMatrix*Mat(cameramatrix_right))*X; //Get the second image coordinate from the triangulated 3D point
-						Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
-						//cout<<norm(xPt_img_ - kp1)<<endl;
-						CloudPoint newpoint;
-						if (norm(xPt_img_ - kp1)<4)
-						{
-							reproj_error.push_back(norm(xPt_img_ - kp1));
-							//Add 3D point to our global point cloud
-							
-							newpoint.pt = Point3d(X(0),X(1),X(2));
-							newpoint.index_of_2d_origin.push_back(matches[i].queryIdx);
-							newpoint.index_of_2d_origin.push_back(matches[i].trainIdx);
-							pcloud.push_back(newpoint);
-
-							//Convert 3D point type to PCL type
-							pcl::PointXYZRGB pclp; 
-						
-							pclp.x = X(0);
-							pclp.y = X(1);
-							pclp.z = X(2);
-							pclp.rgb = *reinterpret_cast<float*>(&rgb);
-
-							//Add 3D point to point cloud
-							cloud->push_back(pclp);	
-						}
-					}
-
-					//Calculate the mean reprojection error
-					Scalar mean_projerror = mean(reproj_error);
-					cout<<"The mean reprojection error :" <<mean_projerror[0]<<endl;	
-	
-					//Visualize the point cloud 
-					cloud->width = (uint32_t) cloud->points.size(); //number of points
-					cloud->height = 1; //a list of points, one row of data
-					viewer.showCloud(cloud);
-				
+			
 					//Basline has now been reconsructed
 					baseline_state = "reconstructed";
-
+					a++;
 					//Move onto the next frame 
-			
 				}
 
 			}
+
 			else if (baseline_state == "reconstructed")
 			{
-				//Call the constructor
-				Reconstruction nextview(frame_left,frame_right); 
-				
+		
 				//Get camera matrix and keypoints in new frame ( old right frame)
 				cameramatrix_left = cameramatrix_right;
-				
-
-				
-				//Get keypoints
-				keypoints_left = keypoints_right; //Use previous right frame keypoints 
-				Mat keypoints_left_image;
-				drawKeypoints(frame_left,keypoints_left,keypoints_left_image);
-				imshow("Keypoints",keypoints_left_image);
-				waitKey(30);
-
-				Mat keypoints_right_image;
-				keypoints_right = nextview.Getkeypoints_right(); //Get keypoints in new right frame
-
-				drawKeypoints(frame_right,keypoints_right,keypoints_right_image);
-				imshow("Keypoints",keypoints_right_image);
-				waitKey(30);
-
-				//Get matches
-				matches = nextview.Getmatches_richfeatures(keypoints_left,keypoints_right);
-
-				Mat matches_image;
-				//drawMatches(frame_left,keypoints_left,frame_right,keypoints_right,matches,matches_image);
-				//imshow("Matches",matches_image);
-				//waitKey(30);
-
-				//Refine matches
-				matches = nextview.Prunematches(keypoints_left,keypoints_right,matches);
-				drawMatches(frame_left,keypoints_left,frame_right,keypoints_right,matches,matches_image);
-				imshow("Matches",matches_image);
-				waitKey(30);
-
-		
-
+			
 				//Populate imgpoints and ppcloud in order to do PNP
 				for (int c = 0;c<matches.size();c++)
 				{
@@ -623,80 +533,79 @@ void Stream_Process(Mat_<double> KMatrix,Mat_<double> distcoeff,tbb::concurrent_
 				
 				ppcloud.clear();
 				imgpoints.clear();
+				a++;
+			}
+			Mat_<double> KMatrixP = KMatrix * Mat(cameramatrix_right);
+			//Go through each point
+			for (unsigned int i=0;i<matches.size() ;i++)
+			{	
 
-				//Go through each point
-				for (unsigned int i=0;i<matches.size() ;i++)
-				{	
-
-					//Homogeneousize keypoint
-					Point2f kp = keypoints_left[matches[i].queryIdx].pt;
-					Point3d u(kp.x,kp.y,1.0);
+				//Homogeneousize keypoint
+				Point2f kp = keypoints_left[matches[i].queryIdx].pt;
+				Point3d u(kp.x,kp.y,1.0);
 					
-					Point2f kp1 = keypoints_right[matches[i].trainIdx].pt;
-					Point3d u1(kp1.x,kp1.y,1.0);
+				Point2f kp1 = keypoints_right[matches[i].trainIdx].pt;
+				Point3d u1(kp1.x,kp1.y,1.0);
 
-					//Normalize homogeenous keypoint
-					Mat_<double> um = KMatrix.inv()*Mat_<double>(u);
-					u.x = um(0);
-					u.y = um(1);
-					u.z = um(2);
+				//Normalize homogeenous keypoint
+				Mat_<double> um =KMatrix.inv()*Mat_<double>(u);
+				u.x = um(0);
+				u.y = um(1);
+				u.z = um(2);
 
-					Mat_<double> um1 = KMatrix.inv()*Mat_<double>(u1);
-					u1.x = um1(0);
-					u1.y = um1(1);
-					u1.z = um1(2);
+				Mat_<double> um1 = KMatrix.inv()*Mat_<double>(u1);
+				u1.x = um1(0);
+				u1.y = um1(1);
+				u1.z = um1(2);
 					
-					//Triangulate keypoint
-					Mat_<double> X = nextview.Triangulatepoint_iterativeleastsquares(u,u1,cameramatrix_left,cameramatrix_right);
+				//Triangulate keypoint
+				Mat_<double> X = view.Triangulatepoint_iterativeleastsquares(u,u1,cameramatrix_left,cameramatrix_right);
 					
-					//Calculate the reprojection error
-					Mat_<double> xPt_img =  (KMatrix*Mat(cameramatrix_right))*X; //Get the second image coordinate from the triangulated 3D point
-					Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
+				//Calculate the reprojection error
+				Mat_<double> xPt_img =  KMatrixP*X; //Get the second image coordinate from the triangulated 3D point
+				Point2f xPt_img_(xPt_img(0)/xPt_img(2),xPt_img(1)/xPt_img(2)); 
 	
 					
-					CloudPoint newpoint;
-					if (norm(xPt_img_ - kp1)<4)
-					{
-						//Add 3D point to our global point cloud
+				CloudPoint newpoint;
+			
+				//Add 3D point to our global point cloud
 						
-						reproj_error.push_back(norm(xPt_img_ - kp1));
-						newpoint.pt = Point3d(X(0),X(1),X(2));
-						newpoint.index_of_2d_origin.push_back(matches[i].queryIdx);
-						newpoint.index_of_2d_origin.push_back(matches[i].trainIdx);
-						pcloud.push_back(newpoint);
+				reproj_error.push_back(norm(xPt_img_ - kp1));
+				newpoint.pt = Point3d(X(0),X(1),X(2));
+				newpoint.index_of_2d_origin.push_back(matches[i].queryIdx);
+				newpoint.index_of_2d_origin.push_back(matches[i].trainIdx);
+				pcloud.push_back(newpoint);
 
-						//Convert 3D point type to PCL type
-						pcl::PointXYZRGB pclp; 
-						pclp.x = X(0);
-						pclp.y = X(1);
-						pclp.z = X(2);
-						pclp.rgb = *reinterpret_cast<float*>(&rgb);
-						//cout<<"point "<<pclp<<endl;	
-						//Add 3D point to point cloud
-						cloud->push_back(pclp);	
-					}
-				}
-
-				//Calculate the mean reprojection error
-				Scalar mean_projerror = mean(reproj_error);
-				cout<<"Capture number no...Reeconstructed with a mean reprojection error :" <<mean_projerror[0]<<endl;	
-	
-				//Visualize the point cloud 
-				cloud->width = (uint32_t) cloud->points.size(); //number of points
-				cloud->height = 1; //a list of points, one row of data
-				viewer.showCloud(cloud);
-		
+				//Convert 3D point type to PCL type
+				pcl::PointXYZRGB pclp; 
+				pclp.x = X(0);
+				pclp.y = X(1);
+				pclp.z = X(2);
+				pclp.rgb = *reinterpret_cast<float*>(&rgb);
+				//cout<<"point "<<pclp<<endl;	
+				//Add 3D point to point cloud
+				cloud->push_back(pclp);	
 				
 			}
-			
-			
+
+			//Calculate the mean reprojection error
+			Scalar mean_projerror = mean(reproj_error);
+			//Visualize the point cloud 
+			cloud->width = (uint32_t) cloud->points.size(); //number of points
+			cloud->height = 1; //a list of points, one row of data
+			//viewer.addPointCloud<pcl::PointXYZRGB> (cloud, rgb, "sample cloud1", v1);
+			viewer.showCloud(cloud);		
+			cout<<"Capture number no...Reeconstructed with a mean reprojection error :" <<mean_projerror[0]<<"number of points is "<<cloud->points.size()<<endl;	
+
+		
+				
 		}
+
 		catch(...)
 		{
-	
-			a--;
+		
 		}
-	a++;
+
 	}
 
 	cout<<"Processing finished"<<endl;
@@ -713,12 +622,14 @@ int main(int argc, char** argv)
 	//typename _Alloc = std::allocator<Mat>
 	
 	tbb::concurrent_vector<cv::Mat> frames;
-
+	String point_matching ;
 
 
 	cout<<"Enter 1 if you would like to use your video stream or 2 if you would like to use the test set of images"<<endl;
 	int selection;
 	cin>>selection;
+
+
 	
 	if (selection ==1)
 	{
@@ -727,6 +638,16 @@ int main(int argc, char** argv)
 		int stream_code;
 		cin>>stream_code;
 
+		cout<<"What resolution would you like to capture in , width and then height eg 640 x 480 or 1920 x 1080 "<<endl;
+		cin>>feed.width>>feed.height;
+			
+		display.width = feed.width;
+		display.height = feed.height;
+		
+		cout<<"Would you like to use rich feature matching(1) or optical flow matching(2)?"<<endl;
+		string u;
+		cin>>u;
+		point_matching = (u=="1")?"Rich features":"Optical flow";
 		//Find out whether the camera needs to be calibrared.
 		cout<<"Enter: '1' to enter a calibration matrix '2' to random generate a calibration matrix or '3' to use last good calibration matrix or '4' to calibrate the camera"<<endl;
 		int calib_yn;
@@ -744,33 +665,41 @@ int main(int argc, char** argv)
 		else if (calib_yn == 2)
 		{
 			//Randomly generate the calibration matrix
-			cout<<"Please enter the size of the stream , width and then length:640 x 480 "<<endl;
-			double frame_width,frame_length;
-			cin>>frame_width>>frame_length;
-			double max_w_h = MAX(frame_length,frame_width);
-			KMatrix = (cv::Mat_<double>(3,3) <<	max_w_h ,0	, frame_width/2.0,0,			max_w_h,	frame_length/2.0,0,			0,			1);
+			double max_w_h = MAX(feed.height,feed.width);
+			KMatrix = (cv::Mat_<double>(3,3) <<	max_w_h ,0	, feed.width/2.0,0,			max_w_h,	feed.height/2.0,0,			0,		1);
 			distortion_coeff = cv::Mat_<double>::zeros(1,4);
 		}
 
 		else if (calib_yn == 3)
 		{
-			KMatrix = (Mat_<double>(3,3) << 525.9316918910984, 0, 316.0624144827294,0, 526.0756660916903, 234.6094749098716,0, 0, 1);
-			distortion_coeff = (Mat_<double>(1,5)<<0.08169256472185063, -0.2102551852460387, 0.006422891358362706, -0.001964568988707569, 0.2044565056581352);
-		
+			KMatrix = (Mat_<double>(3,3) << 678.6992120541859, 0, 277.6049593770479,0, 675.1040994794219, 257.4813100669645, 0, 0, 1);
+			distortion_coeff = (Mat_<double>(1,5)<<0.06027257772998455, 0.1295849070524481, -0.00038486251215363, 0.004457628673161475, -0.7370791624839784);
 		}
+
+
 
 		else if (calib_yn == 4)
 		{
-			cout<<"Enter the stream address: "<<endl;
-			int stream_code;
-			cin>>stream_code;
 			boost::tie(KMatrix,distortion_coeff)=Stream_Calibrate(stream_code);
 			cout<<"KMatrix "<<KMatrix<<endl;
 			cout<<"distortion_coeff "<<distortion_coeff<<endl;
+			string calib_good;
+			cout<<"Are you happy with your calibration and would like to start 3D reconstruction - Y or N"<<endl;
+			
+			cin>>calib_good;
+			if (calib_good != "Y")
+			{
+				boost::tie(KMatrix,distortion_coeff)=Stream_Calibrate(stream_code);
+				cout<<"KMatrix "<<KMatrix<<endl;
+				cout<<"distortion_coeff "<<distortion_coeff<<endl;
+				cout<<"Push enter to begin 3D reconstruction"<<endl;
+				waitKey(0);
+			}
+
 		}
 
 		boost::thread t1(&Stream,stream_code, boost::ref(frames));
-		boost::thread t2(&Stream_Process,KMatrix,distortion_coeff,boost::ref(frames));
+		boost::thread t2(&Stream_Process,KMatrix,distortion_coeff,boost::ref(frames),point_matching);
 		t1.join();
 		t2.join();
 	}
@@ -780,7 +709,7 @@ int main(int argc, char** argv)
 		KMatrix = (cv::Mat_<double>(3,3) <<	3072 ,0	, 3072/2.0,0,			3072,	2048/2.0,0,			0,			1);
 		distortion_coeff = cv::Mat_<double>::zeros(1,4);
 		boost::thread t1(&Images_fromfile,boost::ref(frames));
-		boost::thread t2(&Stream_Process,KMatrix,distortion_coeff,boost::ref(frames));
+		boost::thread t2(&Stream_Process,KMatrix,distortion_coeff,boost::ref(frames),point_matching);
 		t1.join();
 		t2.join();
 	}

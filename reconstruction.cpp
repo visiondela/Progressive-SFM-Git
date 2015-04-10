@@ -12,29 +12,175 @@ Reconstruction::Reconstruction(Mat frame1,Mat frame2)
 	img2 = frame2;
 }
 
-//Function to get keypoints in left image 
-vector<KeyPoint> Reconstruction::Getkeypoints_left() 
+//Function to get keypoints in left image by SURF detector
+vector<KeyPoint> Reconstruction::Getkeypoints_left(String method) 
 {
-	vector<KeyPoint> keypoints1; //Vector of keypoints data type includes 2d coords and scale and orietnation 
-	SurfFeatureDetector detector; 
-	detector.detect(img1,keypoints1);
-	return keypoints1;
+
+	vector<KeyPoint> keypoints; //Vector of keypoints data type includes 2d coords and scale and orietnation 
+	if (method == "SurfFeatureDetector")
+	{
+		SurfFeatureDetector detector; 
+		detector.detect(img1,keypoints);
+	}
+	else if (method == "FastFeatureDetector")
+	{
+		FastFeatureDetector ffd;
+		ffd.detect(img1,keypoints);
+	}
+	
+
+
+	return keypoints;
 }
 
-//Function to get keypoints in right image 
-vector<KeyPoint> Reconstruction::Getkeypoints_right() 
+//Function to get keypoints in right image by rich features
+vector<KeyPoint> Reconstruction::Getkeypoints_right(String method) 
 {
-	vector<KeyPoint> keypoints2; //Vector of keypoints data type includes 2d coords and scale and orietnation 
-	SurfFeatureDetector detector; 
-	detector.detect(img2,keypoints2);
-	return keypoints2;
+	vector<KeyPoint> keypoints; //Vector of keypoints data type includes 2d coords and scale and orietnation 
+	if (method == "SurfFeatureDetector")
+	{
+		SurfFeatureDetector detector; 
+		detector.detect(img2,keypoints);
+	}
+	else if (method == "FastFeatureDetector")
+	{
+		FastFeatureDetector ffd;
+		ffd.detect(img2,keypoints);
+	}
+
+	Mat keypoints_right_image;
+	drawKeypoints(img2,keypoints,keypoints_right_image);
+	imshow("Keypoints",keypoints_right_image);
+	waitKey(30);
+	return keypoints;
 }
 
-//Function to get matches in left and right image 
-vector<DMatch> Reconstruction::Getmatches_richfeatures (vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2) 
-{
 
-	//Get descriptors for keypoints
+
+vector<DMatch> Reconstruction::Getmatches_opticalflow (vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2) 
+{
+	//Convert Keypoints in left image to points
+	vector<Point2f> kpoints_left;
+
+	for (int i = 0;i<keypoints1.size();i++)
+	{
+		kpoints_left.push_back(keypoints1[i].pt);
+	}
+
+	//Convert Keypoints in right image to points
+	vector<Point2f> kpoints_right;
+	for (int i = 0;i<keypoints2.size();i++)
+	{
+		kpoints_right.push_back(keypoints2[i].pt);
+	}
+	
+
+
+
+	//Create points in the right image - this will be location containing the calculated new positions of left points in the second image
+	vector<Point2f> opoint_right;
+
+	//Convert image to grey scale
+	Mat img1_grey,img2_grey;
+	cvtColor(img1,img1_grey,CV_RGB2GRAY);
+	cvtColor(img2,img2_grey,CV_RGB2GRAY);
+
+	//Calculate the optical flow field - how each left point moves accross the two images
+	vector<uchar> vstatus;
+	vector<float> verror;
+	
+	calcOpticalFlowPyrLK(img1_grey,img2_grey,kpoints_left,opoint_right,vstatus,verror);
+
+	//Filter out the points with high error
+	vector<Point2f>opoint_right_good;
+	vector<int> opoint_right_good_index;
+
+	for (int i = 0;i<vstatus.size();i++)
+	{
+		if (vstatus[i] && verror [i]<12)
+		{
+			//Keep the originl index of the point
+			opoint_right_good_index.push_back(i);
+
+			//Keep the point itself
+			opoint_right_good.push_back(opoint_right[i]);
+		}
+		else
+		{
+			vstatus[i]=0;//a bad flow
+		}
+	}
+
+	//Look round each optical flow point in the right image for keypoints and see if can make a match
+	Mat opoint_right_good_flat = Mat(opoint_right_good).reshape(1,opoint_right_good.size());
+
+	Mat kpoints_right_flat = Mat(kpoints_right).reshape(1,kpoints_right.size());
+	
+	cout<<"test4"<<endl;
+	BFMatcher matcher(CV_L2);
+	vector<DMatch> matches;
+	vector<vector<DMatch>> nearest_neighbours; //the matches
+	matcher.radiusMatch(opoint_right_good_flat,kpoints_right_flat,nearest_neighbours,2.0f); //2.f only two matches per point
+
+	//Check that the found neighbors are unique (through away neighbours that are too close together, as they may be confusing)
+	set <int> found_kpoints_right; //for duplicate prevention
+	
+	for (int i = 0 ; i<nearest_neighbours.size();i++) //Go throuhg matches
+	{
+		DMatch _m;
+
+		if (nearest_neighbours[i].size()==1)
+		{
+			//Only one neighbours
+			_m = nearest_neighbours[i][0];
+		}
+
+		else if (nearest_neighbours[i].size()>1)
+		{
+			//2 neighbours - check how close they are
+			double ratio = nearest_neighbours[i][0].distance/nearest_neighbours[i][1].distance;
+			nearest_neighbours[i][1].distance;
+
+			if (ratio<0.7) //not to close 
+			{
+				//take the first neighbours
+				_m = nearest_neighbours[i][0];
+			}
+			else 
+			{
+				//neighbouring points are too close we cant tell which point is better - throw away the point
+				continue; //did not pass ratio
+			}
+
+		}
+		else 
+		{
+			continue ; //no neighbours
+		}
+
+		if (found_kpoints_right.find(_m.trainIdx) == found_kpoints_right.end())
+		{
+			//The found neighbour was not yet used - match with original indexing
+			_m.queryIdx = opoint_right_good_index[_m.queryIdx];
+			matches.push_back(_m);//add this match
+			found_kpoints_right.insert(_m.trainIdx);
+		}
+	}
+
+	//cout<<" pruned "<<matches.size()<<" out of " <<nearest_neighbours.size();
+
+	//Draw matches
+	Mat matches_image;	
+	drawMatches(img1,keypoints1,img2,keypoints2,matches,matches_image);
+	imshow("Matches",matches_image);
+	waitKey(30);
+
+	return matches;
+
+}
+vector<DMatch> Reconstruction::Getmatches_richfeatures(vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2) 
+{
+	//Get descriptors for keypointsvisual
 	Mat descriptors1,descriptors2; //Descriptors
 	SurfDescriptorExtractor extractor;
 	extractor.compute(img1,keypoints1,descriptors1);
@@ -44,11 +190,11 @@ vector<DMatch> Reconstruction::Getmatches_richfeatures (vector<KeyPoint> keypoin
 	vector<DMatch> matches; //Matches
 	BFMatcher matcher;
 	matcher.match(descriptors1,descriptors2,matches);
-	  
 	
 
 	return matches;
 }
+
 
 //Function to prune the matches between two images - get good matches only
 vector<DMatch> Reconstruction::Prunematches(vector<KeyPoint> detected_keypoints1,vector<KeyPoint> detected_keypoints2,vector<DMatch> matches)
@@ -119,7 +265,12 @@ vector<DMatch> Reconstruction::Prunematches(vector<KeyPoint> detected_keypoints1
 	//cout << matches.size() << " matches before, " << new_matches.size() << " new matches after Fundamental Matrix\n";
 	//keep only those points that survived the fundamental matrix
 	//matches = new_matches;
-
+	
+	//Draw matches
+	Mat matches_image;	
+	drawMatches(img1,detected_keypoints1,img2,detected_keypoints2,matches,matches_image);
+	imshow("Matches",matches_image);
+	waitKey(30);
 	return new_matches;
 
 }
@@ -146,7 +297,7 @@ Mat_<double> Reconstruction::Getfundamentalmatrix(vector<KeyPoint> keypoints1,ve
 //Function to get essential matrix
 Mat_<double> Reconstruction::Getessentialmatrix(Mat K,Mat F)
 {
-	Mat E = K.t()*F*K; //accordig to HZ equation
+	Mat E = (K.t())*F*K; //accordig to HZ equation
 
 	return E;
 }
@@ -262,23 +413,21 @@ Matx34d Reconstruction::Getcameramatrix_right(Mat E, Mat KMatrix,vector<KeyPoint
 }
 
 //Function to triangulate a point by linear least squares
-Mat_<double> Reconstruction::Triangulatepoint_linearleastsquares(Point3d u1,Point3d u2,Matx34d P1,Matx34d P2)
+Mat_<double> Reconstruction::Triangulatepoint_linearleastsquares(Point3d u,Point3d u1,Matx34d P,Matx34d P1)
 {
 
 	//We have two equations u = P*U and u1 = p2*U. We want to solve for U. We solve equations AU=B
 	
 	//Construct the A Matrix
-	Matx43d A(u1.x*P1(2,0)-P1(0,0),u1.x*P1(2,1)-P1(0,1),u1.x*P1(2,2)-P1(0,2),
-		u1.y*P1(2,0)-P1(1,0),u1.y*P1(2,1)-P1(1,1),u1.y*P1(2,2)-P1(1,2),
-		u2.x*P2(2,0)-P2(0,0),u2.x*P2(2,1)-P2(0,1),u2.x*P2(2,2)-P2(0,2),
-		u2.y*P2(2,0)-P2(1,0),u2.y*P2(2,1)-P2(1,1),u2.y*P2(2,2)-P2(1,2));
-	
-
-	//Construct the B Matrix
-	Matx41d B(-(u1.x*P1(2,3)-P1(0,3)),
-		-(u1.y*P1(2,3)-P1(1,3)),
-		-(u2.x*P2(2,3)-P2(0,3)),
-		-(u2.y*P2(2,3)-P2(1,3)));
+	Matx43d A(u.x*P(2,0)-P(0,0),	u.x*P(2,1)-P(0,1),		u.x*P(2,2)-P(0,2),		
+			  u.y*P(2,0)-P(1,0),	u.y*P(2,1)-P(1,1),		u.y*P(2,2)-P(1,2),		
+			  u1.x*P1(2,0)-P1(0,0), u1.x*P1(2,1)-P1(0,1),	u1.x*P1(2,2)-P1(0,2),	
+			  u1.y*P1(2,0)-P1(1,0), u1.y*P1(2,1)-P1(1,1),	u1.y*P1(2,2)-P1(1,2)
+			  );
+	Matx41d B(-(u.x*P(2,3)	-P(0,3)),
+			  -(u.y*P(2,3)	-P(1,3)),
+			  -(u1.x*P1(2,3)	-P1(0,3)),
+			  -(u1.y*P1(2,3)	-P1(1,3)));
 	
 	Mat_<double> X;
 	solve(A,B,X,DECOMP_SVD);
@@ -286,41 +435,35 @@ Mat_<double> Reconstruction::Triangulatepoint_linearleastsquares(Point3d u1,Poin
 }
 
 //Function to triangulate a point by iterative least squares
-Mat_<double> Reconstruction::Triangulatepoint_iterativeleastsquares(Point3d u1,Point3d u2,Matx34d P1,Matx34d P2)
+Mat_<double> Reconstruction::Triangulatepoint_iterativeleastsquares(Point3d u,Point3d u1,Matx34d P,Matx34d P1)
 {
-	//Initialise the weights
-	double weight1=1;
-	double weight2=1;
-
+	double wi = 1, wi1 = 1;
 	Mat_<double> X(4,1);
-	Mat_<double> X_= Triangulatepoint_linearleastsquares(u1, u2,P1,P2);
-	X(0)=X_(0);
-	X(1)=X_(1);
-	X(2)=X_(2);
-	X(3)=1;
-
-	//Now calculate X for ten iterations
-	for (int i = 0;i<10;i++)
-	{
-		//Recalculate the weights
-		double weight1_new = Mat_<double>(Mat_<double>(P1).row(2)*X)(0);
-		double weight2_new = Mat_<double>(Mat_<double>(P2).row(2)*X)(0);
+	Mat_<double> X_ = Triangulatepoint_linearleastsquares(u,u,P,P1);
+	X(0) = X_(0); X(1) = X_(1); X(2) = X_(2); X(3) = 1.0;
+	for (int i=0; i<10; i++) { //Hartley suggests 10 iterations at most
+		//recalculate weights
+		double p2x = Mat_<double>(Mat_<double>(P).row(2)*X)(0);
+		double p2x1 = Mat_<double>(Mat_<double>(P1).row(2)*X)(0);
 		#define EPSILON 0.0001
-		//Breaking point
-		if (fabsf(weight1 - weight1_new) <= EPSILON  && fabsf(weight2-weight2_new) <= EPSILON) break;
-
-		//Reweight equations and solve
-		Matx43d A((u1.x*P1(2,0)-P1(0,0))/weight1_new,		(u1.x*P1(2,1)-P1(0,1))/weight1_new,			(u1.x*P1(2,2)-P1(0,2))/weight1_new,		
-				  (u1.y*P1(2,0)-P1(1,0))/weight1_new,		(u1.y*P1(2,1)-P1(1,1))/weight1_new,			(u1.y*P1(2,2)-P1(1,2))/weight1_new,		
-				  (u2.x*P2(2,0)-P2(0,0))/weight2_new,	(u2.x*P2(2,1)-P2(0,1))/weight2_new,		(u2.x*P2(2,2)-P2(0,2))/weight2_new,	
-				  (u2.y*P2(2,0)-P2(1,0))/weight2_new,	(u2.y*P2(2,1)-P2(1,1))/weight2_new,		(u2.y*P2(2,2)-P2(1,2))/weight2_new
+		//breaking point
+		if(fabsf(wi - p2x) <= EPSILON && fabsf(wi1 - p2x1) <= EPSILON) break;
+		
+		wi = p2x;
+		wi1 = p2x1;
+		
+		//reweight equations and solve
+		Matx43d A((u.x*P(2,0)-P(0,0))/wi,		(u.x*P(2,1)-P(0,1))/wi,			(u.x*P(2,2)-P(0,2))/wi,		
+				  (u.y*P(2,0)-P(1,0))/wi,		(u.y*P(2,1)-P(1,1))/wi,			(u.y*P(2,2)-P(1,2))/wi,		
+				  (u1.x*P1(2,0)-P1(0,0))/wi1,	(u1.x*P1(2,1)-P1(0,1))/wi1,		(u1.x*P1(2,2)-P1(0,2))/wi1,	
+				  (u1.y*P1(2,0)-P1(1,0))/wi1,	(u1.y*P1(2,1)-P1(1,1))/wi1,		(u1.y*P1(2,2)-P1(1,2))/wi1
 				  );
-
-		Mat_<double> B = (Mat_<double>(4,1) <<	  -(u1.x*P1(2,3)	-P1(0,3))/weight1_new,
-												  -(u1.y*P1(2,3)	-P1(1,3))/weight1_new,
-												  -(u2.x*P2(2,3)	-P2(0,3))/weight2_new,
-												  -(u2.y*P2(2,3)	-P2(1,3))/weight2_new);
-
+		Mat_<double> B = (Mat_<double>(4,1) <<	  -(u.x*P(2,3)	-P(0,3))/wi,
+												  -(u.y*P(2,3)	-P(1,3))/wi,
+												  -(u1.x*P1(2,3)	-P1(0,3))/wi1,
+												  -(u1.y*P1(2,3)	-P1(1,3))/wi1
+						  );
+		
 		solve(A,B,X_,DECOMP_SVD);
 		X(0) = X_(0); X(1) = X_(1); X(2) = X_(2); X(3) = 1.0;
 	}

@@ -7,9 +7,14 @@
 #include <opencv2\nonfree\features2d.hpp>
 #include <opencv2\highgui\highgui.hpp>
 #include <opencv2\calib3d\calib3d.hpp>
+#include "opencv2\imgproc\imgproc.hpp"
+#include "opencv2\video\video.hpp"
 
 //Boost libraries
 #include <boost\tuple\tuple.hpp> //to return tuples
+
+//STL Libraies
+#include <set>
 
 //STD libraries
 #include <iostream>
@@ -27,11 +32,12 @@ class Reconstruction
 		//Constructor	
 		Reconstruction(Mat frame1,Mat frame2);
 		//Get keypoints
-		vector<KeyPoint> Getkeypoints_left();
-		vector<KeyPoint> Getkeypoints_right();
-		//Find matches
-		vector<DMatch> Getmatches_richfeatures (vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2);
-		//Prune matches
+		vector<KeyPoint> Getkeypoints_left(string method);
+		vector<KeyPoint> Getkeypoints_right(string method);
+		//Find matches by optical flow
+		vector<DMatch> Reconstruction::Getmatches_opticalflow (vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2) ;
+		//Find matches by rich features
+		vector<DMatch> Getmatches_richfeatures(vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2);
 		vector<DMatch> Prunematches(vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch> matches);
 		//Get fundamental matrix
 		Mat_<double>  Getfundamentalmatrix(vector<KeyPoint> keypoints1,vector<KeyPoint> keypoints2,vector<DMatch> matches);
